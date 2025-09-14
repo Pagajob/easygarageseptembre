@@ -3,6 +3,13 @@ import { Platform } from 'react-native';
 
 // IDs des produits d'abonnement créés sur App Store Connect
 export const productIds = [
+  'easygarage.essentiel.weekly',
+  'easygarage.pro.weekly',
+  'easygarage.premium.weekly',
+];
+
+// IDs des anciens produits (pour compatibilité)
+export const legacyProductIds = [
   'easygarage.essentiel',
   'easygarage.pro',
   'easygarage.premium',
@@ -27,7 +34,7 @@ export async function getSubscriptions() {
       // Mock data for web platform
       return [
         {
-          productId: 'easygarage.essentiel',
+          productId: 'easygarage.essentiel.weekly',
           title: 'Essentiel',
           description: '5 véhicules, 50 réservations/mois, 1 utilisateur, EDL 7 jours, export CSV/PDF, logo perso',
           price: '6.99',
@@ -35,7 +42,7 @@ export async function getSubscriptions() {
           localizedPrice: '6,99 €/semaine',
         },
         {
-          productId: 'easygarage.pro',
+          productId: 'easygarage.pro.weekly',
           title: 'Pro',
           description: '30 véhicules, réservations illimitées, 5 utilisateurs, EDL 1 mois, stats avancées, support prioritaire',
           price: '12.99',
@@ -43,7 +50,7 @@ export async function getSubscriptions() {
           localizedPrice: '12,99 €/semaine',
         },
         {
-          productId: 'easygarage.premium',
+          productId: 'easygarage.premium.weekly',
           title: 'Premium',
           description: 'Véhicules et utilisateurs illimités, EDL 1 an, multi-sociétés, automatisations, API adresse, support téléphonique',
           price: '24.99',
@@ -72,7 +79,20 @@ export async function buySubscription(productId: string) {
         transactionReceipt: 'web-receipt-' + Date.now(),
       };
     } else {
-      return await RNIap.requestSubscription({ sku: productId });
+      // Utiliser la nouvelle API de react-native-iap v13
+      const result = await RNIap.requestSubscription({ 
+        sku: productId,
+        subscriptionOffers: [{ sku: productId, offerToken: 'default' }]
+      });
+      
+      // S'assurer que la réponse a la structure attendue
+      return {
+        productId: result.productId || productId,
+        transactionId: result.transactionId || result.transactionIdentifier,
+        transactionReceipt: result.transactionReceipt,
+        purchaseToken: result.purchaseToken,
+        originalTransactionIdentifierIOS: result.originalTransactionIdentifierIOS,
+      };
     }
   } catch (e) {
     console.warn('Erreur achat abonnement:', e);

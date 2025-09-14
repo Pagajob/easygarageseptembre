@@ -18,7 +18,7 @@ const abonnements: Abonnement[] = [
   {
     nom: 'Gratuit',
     prixMensuel: 0,
-    description: '1 véhicule, 5 réservations, 1 utilisateur, EDL non stocké (local 24h), pas d’export, pas de personnalisation, logo EasyGarage affiché',
+    description: '1 véhicule, 5 réservations, 1 utilisateur, EDL non stocké (local 24h), pas d'export, pas de personnalisation, logo EasyGarage affiché',
     vehiculesMax: 1,
     reservationsMax: 5,
     utilisateursMax: 1,
@@ -30,7 +30,9 @@ const abonnements: Abonnement[] = [
   },
   {
     nom: 'Essentiel',
-    prixMensuel: 29,
+    prixMensuel: 6.99,
+    prixHebdomadaire: 6.99,
+    prixMensuelLegacy: 29,
     description: '5 véhicules, 50 réservations/mois, 1 utilisateur, EDL stocké 7 jours, export CSV/PDF, personnalisation logo et couleurs',
     vehiculesMax: 5,
     reservationsMax: 50,
@@ -40,10 +42,16 @@ const abonnements: Abonnement[] = [
     personnalisationVisuelle: true,
     multiSociete: false,
     support: 'email',
+    productIds: {
+      weekly: 'easygarage.essentiel.weekly',
+      monthly: 'easygarage.essentiel'
+    }
   },
   {
     nom: 'Pro',
-    prixMensuel: 49,
+    prixMensuel: 12.99,
+    prixHebdomadaire: 12.99,
+    prixMensuelLegacy: 49,
     description: '30 véhicules, réservations illimitées, 5 utilisateurs, EDL stocké 1 mois, statistiques avancées, support prioritaire',
     vehiculesMax: 30,
     reservationsMax: 'illimité',
@@ -53,10 +61,16 @@ const abonnements: Abonnement[] = [
     personnalisationVisuelle: true,
     multiSociete: false,
     support: 'prioritaire',
+    productIds: {
+      weekly: 'easygarage.pro.weekly',
+      monthly: 'easygarage.pro'
+    }
   },
   {
     nom: 'Premium',
-    prixMensuel: 99,
+    prixMensuel: 24.99,
+    prixHebdomadaire: 24.99,
+    prixMensuelLegacy: 99,
     description: 'Véhicules et utilisateurs illimités, EDL 1 an, multi-sociétés, automatisations, API adresse, support téléphonique',
     vehiculesMax: 9999, // Utilisé comme "illimité"
     reservationsMax: 'illimité',
@@ -66,6 +80,10 @@ const abonnements: Abonnement[] = [
     personnalisationVisuelle: true,
     multiSociete: true,
     support: 'téléphone',
+    productIds: {
+      weekly: 'easygarage.premium.weekly',
+      monthly: 'easygarage.premium'
+    }
   },
 ];
 

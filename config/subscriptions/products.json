@@ -1,0 +1,66 @@
+{
+  "subscriptionProducts": [
+    {
+      "productId": "easygarage.essentiel.weekly",
+      "title": "Essentiel",
+      "description": "5 véhicules, 50 réservations/mois, 1 utilisateur, EDL 7 jours, export CSV/PDF, logo perso",
+      "price": "6.99",
+      "currency": "EUR",
+      "localizedPrice": "6,99 €/semaine",
+      "type": "weekly",
+      "plan": "essentiel"
+    },
+    {
+      "productId": "easygarage.pro.weekly",
+      "title": "Pro",
+      "description": "30 véhicules, réservations illimitées, 5 utilisateurs, EDL 1 mois, stats avancées, support prioritaire",
+      "price": "12.99",
+      "currency": "EUR",
+      "localizedPrice": "12,99 €/semaine",
+      "type": "weekly",
+      "plan": "pro"
+    },
+    {
+      "productId": "easygarage.premium.weekly",
+      "title": "Premium",
+      "description": "Véhicules et utilisateurs illimités, EDL 1 an, multi-sociétés, automatisations, API adresse, support téléphonique",
+      "price": "24.99",
+      "currency": "EUR",
+      "localizedPrice": "24,99 €/semaine",
+      "type": "weekly",
+      "plan": "premium"
+    }
+  ],
+  "legacyProducts": [
+    {
+      "productId": "easygarage.essentiel",
+      "title": "Essentiel",
+      "description": "5 véhicules, 50 réservations/mois, 1 utilisateur, EDL 7 jours, export CSV/PDF, logo perso",
+      "price": "29.99",
+      "currency": "EUR",
+      "localizedPrice": "29,99 €/mois",
+      "type": "monthly",
+      "plan": "essentiel"
+    },
+    {
+      "productId": "easygarage.pro",
+      "title": "Pro",
+      "description": "30 véhicules, réservations illimitées, 5 utilisateurs, EDL 1 mois, stats avancées, support prioritaire",
+      "price": "49.99",
+      "currency": "EUR",
+      "localizedPrice": "49,99 €/mois",
+      "type": "monthly",
+      "plan": "pro"
+    },
+    {
+      "productId": "easygarage.premium",
+      "title": "Premium",
+      "description": "Véhicules et utilisateurs illimités, EDL 1 an, multi-sociétés, automatisations, API adresse, support téléphonique",
+      "price": "99.99",
+      "currency": "EUR",
+      "localizedPrice": "99,99 €/mois",
+      "type": "monthly",
+      "plan": "premium"
+    }
+  ]
+}

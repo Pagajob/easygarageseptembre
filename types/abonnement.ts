@@ -8,6 +8,8 @@ export interface Abonnement {
   id?: string; // Firestore doc id
   nom: string;
   prixMensuel: number;
+  prixHebdomadaire?: number;
+  prixMensuelLegacy?: number;
   description: string;
   vehiculesMax: number | 'illimité';
   reservationsMax: number | 'illimité';
@@ -17,6 +19,10 @@ export interface Abonnement {
   personnalisationVisuelle: boolean;
   multiSociete: boolean;
   support: SupportType;
+  productIds?: {
+    weekly: string;
+    monthly: string;
+  };
 }
 
 export interface AbonnementUtilisateur {
