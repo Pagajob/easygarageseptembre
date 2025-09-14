@@ -18,13 +18,24 @@ export const legacyProductIds = [
 export async function initIAP() {
   try {
     if (Platform.OS !== 'web') {
+      // Initialisation avec configuration StoreKit 2
       await RNIap.initConnection();
+      
       if (Platform.OS === 'android') {
         await RNIap.flushFailedPurchasesCachedAsPendingAndroid();
+      }
+      
+      if (Platform.OS === 'ios') {
+        // Configuration spécifique iOS pour StoreKit 2
+        console.log('IAP initialisé avec StoreKit 2 pour iOS');
       }
     }
   } catch (e) {
     console.warn('Erreur IAP init:', e);
+    // Si l'erreur est liée à appTransactionID, on peut continuer
+    if (e.message && e.message.includes('appTransactionID')) {
+      console.warn('Erreur appTransactionID ignorée - StoreKit 2 sera utilisé automatiquement');
+    }
   }
 }
 

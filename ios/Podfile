@@ -62,5 +62,23 @@ target 'EasyGarage' do
         end
       end
     end
+
+    # Configuration StoreKit 2 et iOS 15.0+ pour tous les pods
+    installer.pods_project.targets.each do |target|
+      target.build_configurations.each do |config|
+        # S'assurer que tous les pods utilisent iOS 15.0+
+        config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '15.0'
+        
+        # Configuration spécifique pour StoreKit 2
+        if target.name == 'react-native-iap'
+          config.build_settings['GCC_PREPROCESSOR_DEFINITIONS'] ||= ['$(inherited)']
+          config.build_settings['GCC_PREPROCESSOR_DEFINITIONS'] << 'USE_STOREKIT2=1'
+        end
+        
+        # S'assurer que StoreKit 2 est disponible
+        config.build_settings['OTHER_SWIFT_FLAGS'] ||= ['$(inherited)']
+        config.build_settings['OTHER_SWIFT_FLAGS'] << '-DUSE_STOREKIT2'
+      end
+    end
   end
 end

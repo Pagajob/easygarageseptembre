@@ -2,7 +2,7 @@
   "expo": {
     "name": "EasyGarage",
     "slug": "easygarage-app",
-    "version": "1.0.10",
+    "version": "1.0.9",
     "orientation": "portrait",
     "icon": "./assets/images/easygarage-icon.png",
     "scheme": "easygarage",
@@ -40,7 +40,15 @@
           "serviceId": "com.allanox.easygarage.app"
         }
       ],
-      "react-native-iap"
+      [
+        "react-native-iap",
+        {
+          "ios": {
+            "useStoreKit2": true,
+            "enableReceiptValidation": true
+          }
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true
