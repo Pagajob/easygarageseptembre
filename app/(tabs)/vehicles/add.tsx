@@ -16,8 +16,7 @@ const STATUT_OPTIONS = ['Disponible', 'Loué', 'Maintenance', 'Indisponible'];
 export default function AddVehicleScreen() {
   const { colors } = useTheme();
   const { addVehicle } = useData();
-  const { user } = useAuth();
-  const { subscription, isSubscriptionActive } = useStripeSubscription();
+  const { user, abonnementUtilisateur, getAbonnementCourant } = useAuth();
   const [isLoading, setIsLoading] = useState(false);
   const [showRestrictionModal, setShowRestrictionModal] = useState(false);
   
@@ -319,23 +318,9 @@ export default function AddVehicleScreen() {
 
   // Contrôle de la limite d'abonnement
   const { vehicles } = useData();
-  
-  // Get vehicle limit based on subscription
-  const getVehicleLimit = () => {
-    if (!subscription || !isSubscriptionActive()) return 1; // Free plan limit
-    
-    switch (subscription.productName) {
-      case 'Essentiel': return 5;
-      case 'Pro': return 30;
-      case 'Premium': return 999; // Unlimited
-      default: return 1;
-    }
-  };
-  
-  const vehiculesMax = getVehicleLimit();
-  
+  const vehiculesMax = getAbonnementCourant()?.vehiculesMax ?? 1;
   useEffect(() => {
-    if (vehicles.length >= vehiculesMax) {
+    if (typeof vehiculesMax === 'number' && vehicles.length >= vehiculesMax) {
       setShowRestrictionModal(true);
     }
   }, [vehicles.length, vehiculesMax]);
@@ -348,13 +333,13 @@ export default function AddVehicleScreen() {
             Fonctionnalité réservée aux abonnés
           </Text>
           <Text style={{ fontSize: 16, color: colors.textSecondary, marginBottom: 24, textAlign: 'center' }}>
-            Vous avez atteint la limite de véhicules de votre abonnement ({vehiculesMax} véhicule{vehiculesMax > 1 ? 's' : ''}). Souscrivez à un abonnement pour continuer.
+            Vous avez atteint la limite de véhicules de votre abonnement ({vehiculesMax} véhicule{vehiculesMax > 1 ? 's' : ''}). Abonnez-vous via l'App Store pour continuer.
           </Text>
           <TouchableOpacity
             style={{ backgroundColor: colors.primary, borderRadius: 28, paddingVertical: 14, paddingHorizontal: 32 }}
             onPress={() => router.push('/(tabs)/settings/subscription')}
           >
-            <Text style={{ color: colors.background, fontWeight: '700', fontSize: 16 }}>S'abonner maintenant</Text>
+            <Text style={{ color: colors.background, fontWeight: '700', fontSize: 16 }}>Voir les abonnements</Text>
           </TouchableOpacity>
         </View>
       </View>

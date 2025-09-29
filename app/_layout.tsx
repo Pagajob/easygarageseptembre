@@ -117,8 +117,6 @@ export default function RootLayout() {
                     />
                     <Stack.Screen name="onboarding" options={{ headerShown: false }} />
                     <Stack.Screen name="onboarding-profile" options={{ headerShown: false }} />
-                    <Stack.Screen name="subscription-success" options={{ headerShown: false }} />
-                    <Stack.Screen name="subscription-cancel" options={{ headerShown: false }} />
                     <Stack.Screen name="+not-found" />
                   </Stack>
                   <StatusBar style="auto" />
