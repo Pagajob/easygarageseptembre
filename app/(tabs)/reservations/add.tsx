@@ -1,7 +1,22 @@
+import React, { useState } from 'react';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Alert, Image, Modal, Platform } from 'react-native';
+import { ArrowLeft, Save, Car, User, Calendar, Clock, Plus, Upload } from 'lucide-react-native';
+import { useTheme } from '@/contexts/ThemeContext';
+import { useData, Client, Reservation } from '@/contexts/DataContext';
+import { useAuth } from '@/contexts/AuthContext';
+import { useStripeSubscription } from '@/hooks/useStripeSubscription';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { router } from 'expo-router';
+import DualDatePicker from '@/components/DualDatePicker';
+import * as DocumentPicker from 'expo-document-picker';
+import { ClientService } from '@/services/firebaseService';
+import AddressAutocomplete from '@/components/AddressAutocomplete';
+
 export default function AddReservationScreen() {
   const { colors } = useTheme();
   const { vehicles, clients, reservations, addReservation, addClient } = useData();
-  const { user, abonnementUtilisateur, getAbonnementCourant } = useAuth();
+  const { user } = useAuth();
+  const { subscription, isSubscriptionActive } = useStripeSubscription();
   const [showRestrictionModal, setShowRestrictionModal] = useState(false);
   
   const [currentStep, setCurrentStep] = useState(1);
@@ -10,8 +25,6 @@ export default function AddReservationScreen() {
   const [showNewClientModal, setShowNewClientModal] = useState(false);
   const [showDualDatePicker, setShowDualDatePicker] = useState(false);
   const [isCreatingClient, setIsCreatingClient] = useState(false);
-  const [showCalendarPicker, setShowCalendarPicker] = useState(false);
-  const [calendarType, setCalendarType] = useState<'start' | 'end'>('start');
   
   // Get reserved dates for the selected vehicle
   const getReservedDatesForVehicle = () => {
@@ -133,28 +146,6 @@ export default function AddReservationScreen() {
       montantLocation: prev.montantLocation === 0 ? automaticPrice : prev.montantLocation
     }));
   }, [selectedVehicle, reservationData.dateDebut, reservationData.dateRetourPrevue, reservationData.heureDebut, reservationData.heureRetourPrevue]);
-
-  const openCalendarPicker = (type: 'start' | 'end') => {
-    setCalendarType(type);
-    setShowCalendarPicker(true);
-  };
-
-  const handleDateTimeSelect = (date: string, time: string) => {
-    if (calendarType === 'start') {
-      setReservationData(prev => ({
-        ...prev,
-        dateDebut: date,
-        heureDebut: time
-      }));
-    } else {
-      setReservationData(prev => ({
-        ...prev,
-        dateRetourPrevue: date,
-        heureRetourPrevue: time
-      }));
-    }
-    setShowCalendarPicker(false);
-  };
 
   const formatDisplayDate = (dateString: string, timeString: string) => {
     if (!dateString) return 'Sélectionner';
@@ -306,6 +297,47 @@ export default function AddReservationScreen() {
     Alert.alert('Succès', 'Votre réservation a bien été créée');
     router.back();
   };
+
+  // Contrôle de la limite d'abonnement
+  const getReservationLimit = () => {
+    if (!subscription || !isSubscriptionActive()) return 3; // Free plan limit
+    
+    switch (subscription.productName) {
+      case 'Essentiel': return 50;
+      case 'Pro': return 999; // Unlimited
+      case 'Premium': return 999; // Unlimited
+      default: return 3;
+    }
+  };
+  
+  const reservationsMax = getReservationLimit();
+  
+  React.useEffect(() => {
+    if (reservations.length >= reservationsMax) {
+      setShowRestrictionModal(true);
+    }
+  }, [reservations, reservationsMax]);
+
+  if (showRestrictionModal) {
+    return (
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: colors.background }}>
+        <View style={{ backgroundColor: colors.surface, borderRadius: 20, padding: 32, alignItems: 'center', margin: 24 }}>
+          <Text style={{ fontSize: 18, fontWeight: '700', color: colors.text, marginBottom: 16, textAlign: 'center' }}>
+            Limite de réservations atteinte
+          </Text>
+          <Text style={{ fontSize: 16, color: colors.textSecondary, marginBottom: 24, textAlign: 'center' }}>
+            Vous avez atteint la limite de réservations de votre plan ({reservationsMax} réservation{reservationsMax > 1 ? 's' : ''}). Souscrivez à un abonnement pour continuer.
+          </Text>
+          <TouchableOpacity
+            style={{ backgroundColor: colors.primary, borderRadius: 28, paddingVertical: 14, paddingHorizontal: 32 }}
+            onPress={() => router.push('/(tabs)/settings/subscription')}
+          >
+            <Text style={{ color: colors.background, fontWeight: '700', fontSize: 16 }}>S'abonner maintenant</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    );
+  }
 
   const renderStepIndicator = () => (
     <View style={styles.stepIndicator}>
@@ -646,16 +678,12 @@ export default function AddReservationScreen() {
             />
           </View>
 
-          <View style={styles.inputGroup}>
-            <Text style={styles.label}>Adresse</Text>
-            <TextInput
-              style={styles.input}
-              value={newClientData.adresse}
-              onChangeText={(text) => setNewClientData(prev => ({ ...prev, adresse: text }))}
-              placeholder="Adresse complète"
-              placeholderTextColor={colors.textSecondary}
-            />
-          </View>
+          <AddressAutocomplete
+            value={newClientData.adresse}
+            onAddressSelect={adresse => setNewClientData(prev => ({ ...prev, adresse }))}
+            label="Adresse"
+            placeholder="Commencez à taper votre adresse..."
+          />
 
           <View style={styles.inputGroup}>
             <Text style={styles.label}>Permis de conduire</Text>
@@ -715,13 +743,555 @@ export default function AddReservationScreen() {
 
   const styles = createStyles(colors);
 
-  // Contrôle de la limite d'abonnement
-  const reservationsMax = getAbonnementCourant()?.reservationsMax ?? 5;
-  useEffect(() => {
-    if (reservations.length >= reservationsMax) {
-      setShowRestrictionModal(true);
-    }
-  }, [reservations, reservationsMax]);
+  return (
+    <SafeAreaView style={styles.container}>
+      <View style={styles.header}>
+        <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+          <ArrowLeft size={24} color={colors.text} />
+        </TouchableOpacity>
+        <Text style={styles.title}>Nouvelle réservation</Text>
+        <View style={styles.placeholder} />
+      </View>
 
-  // At the end of the component
+      {renderStepIndicator()}
+
+      <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+        {currentStep === 1 && renderVehicleSelection()}
+        {currentStep === 2 && renderDateTimeSelection()}
+        {currentStep === 3 && renderClientSelection()}
+      </ScrollView>
+
+      <View style={styles.footer}>
+        {currentStep > 1 && (
+          <TouchableOpacity
+            style={styles.prevButton}
+            onPress={() => setCurrentStep(currentStep - 1)}
+          >
+            <Text style={styles.prevButtonText}>Précédent</Text>
+          </TouchableOpacity>
+        )}
+        
+        <TouchableOpacity
+          style={[
+            styles.nextButton,
+            !canProceedToNextStep() && styles.nextButtonDisabled
+          ]}
+          onPress={() => {
+            if (currentStep < 3) {
+              setCurrentStep(currentStep + 1);
+            } else {
+              handleSaveReservation();
+            }
+          }}
+          disabled={!canProceedToNextStep()}
+        >
+          <Text style={styles.nextButtonText}>
+            {currentStep === 3 ? 'Créer la réservation' : 'Suivant'}
+          </Text>
+        </TouchableOpacity>
+      </View>
+
+      {renderNewClientModal()}
+
+      <DualDatePicker
+        visible={showDualDatePicker}
+        startDate={reservationData.dateDebut}
+        endDate={reservationData.dateRetourPrevue}
+        startTime={reservationData.heureDebut}
+        endTime={reservationData.heureRetourPrevue}
+        onDatesSelect={handleDualDateSelect}
+        onClose={() => setShowDualDatePicker(false)}
+        title="Sélectionner les dates de location"
+        minDate={new Date()}
+        reservedDates={reservedDates}
+      />
+    </SafeAreaView>
+  );
 }
+
+const createStyles = (colors: any) => StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: colors.background,
+  },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+  },
+  backButton: {
+    width: 40,
+    height: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  title: {
+    fontSize: 20,
+    fontWeight: '600',
+    color: colors.text,
+  },
+  placeholder: {
+    width: 40,
+  },
+  stepIndicator: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 20,
+    gap: 8,
+  },
+  stepContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  stepCircle: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: colors.border,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  stepCircleActive: {
+    backgroundColor: colors.primary,
+  },
+  stepText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: colors.textSecondary,
+  },
+  stepTextActive: {
+    color: colors.background,
+  },
+  stepLine: {
+    width: 40,
+    height: 2,
+    backgroundColor: colors.border,
+    marginHorizontal: 8,
+  },
+  stepLineActive: {
+    backgroundColor: colors.primary,
+  },
+  content: {
+    flex: 1,
+    padding: 20,
+  },
+  stepContent: {
+    flex: 1,
+  },
+  stepTitle: {
+    fontSize: 24,
+    fontWeight: '700',
+    color: colors.text,
+    marginBottom: 20,
+  },
+  emptyState: {
+    alignItems: 'center',
+    paddingVertical: 60,
+  },
+  emptyTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: colors.text,
+    marginTop: 16,
+    marginBottom: 8,
+  },
+  emptySubtitle: {
+    fontSize: 14,
+    color: colors.textSecondary,
+    textAlign: 'center',
+  },
+  vehiclesList: {
+    flex: 1,
+  },
+  vehicleCard: {
+    flexDirection: 'row',
+    backgroundColor: colors.surface,
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  vehicleCardSelected: {
+    borderColor: colors.primary,
+    backgroundColor: colors.primary + '10',
+  },
+  vehicleImage: {
+    width: 60,
+    height: 60,
+    borderRadius: 8,
+    marginRight: 16,
+  },
+  vehiclePlaceholder: {
+    width: 60,
+    height: 60,
+    borderRadius: 8,
+    backgroundColor: colors.border,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 16,
+  },
+  vehicleInfo: {
+    flex: 1,
+  },
+  vehicleName: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: colors.text,
+    marginBottom: 4,
+  },
+  vehicleImmat: {
+    fontSize: 14,
+    color: colors.textSecondary,
+    marginBottom: 4,
+  },
+  vehicleKm: {
+    fontSize: 12,
+    color: colors.accent,
+    marginBottom: 4,
+  },
+  vehiclePrice: {
+    fontSize: 12,
+    color: colors.primary,
+    fontWeight: '500',
+  },
+  vehicleStatus: {
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  statusBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+  },
+  statusText: {
+    fontSize: 12,
+    fontWeight: '500',
+  },
+  dateTimeContainer: {
+    marginBottom: 20,
+  },
+  dualDateButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.surface,
+    borderRadius: 12,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: colors.border,
+    gap: 12,
+  },
+  dualDateButtonContent: {
+    flex: 1,
+  },
+  dualDateButtonTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: colors.text,
+    marginBottom: 4,
+  },
+  dualDateButtonSubtitle: {
+    fontSize: 14,
+    color: colors.textSecondary,
+  },
+  selectedDatesContainer: {
+    gap: 4,
+  },
+  selectedDateText: {
+    fontSize: 14,
+    color: colors.primary,
+    fontWeight: '500',
+  },
+  summaryCard: {
+    backgroundColor: colors.primary + '10',
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 20,
+  },
+  summaryTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: colors.text,
+    marginBottom: 12,
+  },
+  summaryRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 8,
+  },
+  summaryLabel: {
+    fontSize: 14,
+    color: colors.text,
+  },
+  summaryValue: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: colors.text,
+  },
+  contractSection: {
+    marginTop: 20,
+  },
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: colors.text,
+    marginBottom: 16,
+  },
+  contractOptions: {
+    flexDirection: 'row',
+    gap: 12,
+    marginBottom: 20,
+  },
+  contractOption: {
+    flex: 1,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: 12,
+    paddingVertical: 12,
+    alignItems: 'center',
+  },
+  contractOptionActive: {
+    borderColor: colors.primary,
+    backgroundColor: colors.primary + '10',
+  },
+  contractOptionText: {
+    fontSize: 16,
+    color: colors.text,
+  },
+  contractOptionTextActive: {
+    color: colors.primary,
+    fontWeight: '600',
+  },
+  pricingSection: {
+    backgroundColor: colors.surface,
+    borderRadius: 12,
+    padding: 16,
+  },
+  pricingSectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 16,
+  },
+  pricingSectionTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: colors.text,
+  },
+  calculatedPriceRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 16,
+    paddingBottom: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+  },
+  calculatedPriceLabel: {
+    fontSize: 14,
+    color: colors.textSecondary,
+  },
+  calculatedPriceValue: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: colors.primary,
+  },
+  inputGroup: {
+    marginBottom: 16,
+  },
+  label: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: colors.text,
+    marginBottom: 8,
+  },
+  input: {
+    backgroundColor: colors.background,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: 8,
+    padding: 12,
+    fontSize: 16,
+    color: colors.text,
+  },
+  helpText: {
+    fontSize: 12,
+    color: colors.textSecondary,
+    marginTop: 4,
+  },
+  clientHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  newClientButton: {
+    backgroundColor: colors.primary,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 8,
+    gap: 6,
+  },
+  newClientButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: colors.background,
+  },
+  clientsList: {
+    flex: 1,
+  },
+  clientCard: {
+    flexDirection: 'row',
+    backgroundColor: colors.surface,
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  clientCardSelected: {
+    borderColor: colors.primary,
+    backgroundColor: colors.primary + '10',
+  },
+  clientAvatar: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    backgroundColor: colors.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 16,
+  },
+  clientAvatarText: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: colors.background,
+  },
+  clientInfo: {
+    flex: 1,
+  },
+  clientName: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: colors.text,
+    marginBottom: 4,
+  },
+  clientContact: {
+    fontSize: 14,
+    color: colors.textSecondary,
+    marginBottom: 2,
+  },
+  clientDocuments: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 4,
+  },
+  documentBadge: {
+    backgroundColor: colors.success + '20',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 6,
+  },
+  documentText: {
+    fontSize: 10,
+    color: colors.success,
+    fontWeight: '500',
+  },
+  modalContainer: {
+    flex: 1,
+    backgroundColor: colors.background,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+  },
+  modalCancel: {
+    fontSize: 16,
+    color: colors.textSecondary,
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: colors.text,
+  },
+  modalSave: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: colors.primary,
+  },
+  modalSaveDisabled: {
+    color: colors.textSecondary,
+  },
+  modalContent: {
+    flex: 1,
+    padding: 20,
+  },
+  textArea: {
+    height: 100,
+    textAlignVertical: 'top',
+  },
+  documentButton: {
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.primary,
+    borderStyle: 'dashed',
+    borderRadius: 8,
+    padding: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+  },
+  documentButtonText: {
+    fontSize: 14,
+    color: colors.primary,
+    fontWeight: '500',
+  },
+  footer: {
+    flexDirection: 'row',
+    padding: 20,
+    gap: 12,
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+  },
+  prevButton: {
+    flex: 1,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: 12,
+    paddingVertical: 16,
+    alignItems: 'center',
+  },
+  prevButtonText: {
+    fontSize: 16,
+    fontWeight: '500',
+    color: colors.text,
+  },
+  nextButton: {
+    flex: 2,
+    backgroundColor: colors.primary,
+    borderRadius: 12,
+    paddingVertical: 16,
+    alignItems: 'center',
+  },
+  nextButtonDisabled: {
+    backgroundColor: colors.border,
+  },
+  nextButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: colors.background,
+  },
+});

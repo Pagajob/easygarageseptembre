@@ -26,8 +26,7 @@ import { collection, query, where, getDocs, updateDoc, Timestamp, getFirestore }
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { router } from 'expo-router';
 import { useBiometricAuth } from '@/hooks/useBiometricAuth';
-import { AbonnementUtilisateur, Abonnement } from '@/types/abonnement';
-import * as IAP from '@/services/iapService';
+import { useStripeSubscription } from '@/hooks/useStripeSubscription';
 
 export interface UserProfile {
   uid: string;
@@ -64,12 +63,6 @@ interface AuthContextType {
   disableBiometricAuth: () => Promise<boolean>;
   canUseBiometric: boolean;
   biometricTypeName: string;
-  abonnementUtilisateur: AbonnementUtilisateur | null;
-  abonnements: Abonnement[];
-  getAbonnementCourant: () => Abonnement | undefined;
-  refreshAbonnement: () => Promise<void>;
-  acheterAbonnement: (productId: string) => Promise<void>;
-  restaurerAbonnement: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -81,29 +74,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [authInitialized, setAuthInitialized] = useState(false); 
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
-  const [abonnementUtilisateur, setAbonnementUtilisateur] = useState<AbonnementUtilisateur | null>(null);
-  const [abonnements, setAbonnements] = useState<Abonnement[]>([]);
 
-  // Charger tous les abonnements Firestore au démarrage
-  useEffect(() => {
-    const fetchAbonnements = async () => {
-      try {
-        const abonnementsRef = collection(db, 'abonnements');
-        const snapshot = await getDocs(abonnementsRef);
-        const abonnementsList = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Abonnement[];
-        setAbonnements(abonnementsList);
-      } catch (error) {
-        console.error('Erreur lors du chargement des abonnements:', error);
-      }
-    };
-    fetchAbonnements();
-  }, []);
 
-  // Helper pour obtenir l’objet Abonnement courant
-  const getAbonnementCourant = () => {
-    if (!abonnementUtilisateur || !abonnements.length) return undefined;
-    return abonnements.find(a => a.id === abonnementUtilisateur.abonnement);
-  };
 
   // Hook pour l'authentification biométrique
   const biometricAuth = useBiometricAuth();
@@ -481,44 +453,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
-  // Récupérer l'abonnement utilisateur depuis Firestore
-  const refreshAbonnement = async () => {
-    if (!user) return;
-    const q = query(collection(db, 'AbonnementUtilisateur'), where('user', '==', user.uid), where('statut', '==', 'actif'));
-    const snap = await getDocs(q);
-    if (!snap.empty) {
-      setAbonnementUtilisateur(snap.docs[0].data() as AbonnementUtilisateur);
-    } else {
-      setAbonnementUtilisateur(null);
-    }
-  };
 
-  // Acheter un abonnement via l'App Store
-  const acheterAbonnement = async (productId: string) => {
-    const purchase = await IAP.buySubscription(productId);
-    // Récupérer le reçu de la transaction
-    const receipt = (purchase as any)?.transactionReceipt;
-    if (receipt && user) {
-      await IAP.validateAppleReceipt(receipt, user.uid);
-    }
-    await refreshAbonnement();
-  };
 
-  // Restaurer les achats
-  const restaurerAbonnement = async () => {
-    const purchases = await IAP.restorePurchases();
-    // Prendre le reçu du dernier achat restauré
-    const receipt = (purchases?.[0] as any)?.transactionReceipt;
-    if (receipt && user) {
-      await IAP.validateAppleReceipt(receipt, user.uid);
-    }
-    await refreshAbonnement();
-  };
 
-  // Rafraîchir l'abonnement à chaque connexion
-  useEffect(() => {
-    if (user) refreshAbonnement();
-  }, [user]);
 
   return (
     <AuthContext.Provider
@@ -542,12 +479,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         disableBiometricAuth,
         canUseBiometric: biometricAuth.canUseBiometric(),
         biometricTypeName: biometricAuth.getBiometricTypeName(),
-        abonnementUtilisateur,
-        abonnements,
-        getAbonnementCourant,
-        refreshAbonnement,
-        acheterAbonnement,
-        restaurerAbonnement,
       }}
     >
       {children}

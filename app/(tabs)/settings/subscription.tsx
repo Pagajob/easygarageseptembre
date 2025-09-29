@@ -2,8 +2,8 @@ import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Alert, ScrollView, SafeAreaView, Image } from 'react-native';
 import { useAuth } from '@/contexts/AuthContext';
 import { useTheme } from '@/contexts/ThemeContext';
-import { getSubscriptions } from '@/services/iapService';
-import { Check, Star, Shield, Users, FileText, ArrowRight } from 'lucide-react-native';
+import { useStripeSubscription } from '@/hooks/useStripeSubscription';
+import { Check, Star, Shield, Users, FileText, ArrowRight, CreditCard, X } from 'lucide-react-native';
 
 const PLAN_FEATURES: Record<string, string[]> = {
   'Gratuit': [
@@ -48,64 +48,66 @@ const PLAN_ICONS: Record<string, any> = {
 };
 
 export default function SubscriptionScreen() {
-  const { abonnementUtilisateur, acheterAbonnement, refreshAbonnement, user, updateUserProfile } = useAuth();
+  const { user, updateUserProfile } = useAuth();
   const { colors } = useTheme();
-  const [plans, setPlans] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { 
+    subscription, 
+    loading, 
+    error,
+    createCheckoutSession,
+    cancelSubscription,
+    getAvailableProducts,
+    getCurrentProduct,
+    isSubscriptionActive
+  } = useStripeSubscription();
   const [processing, setProcessing] = useState('');
 
   useEffect(() => {
-    (async () => {
-      setLoading(true);
-      const subs = await getSubscriptions();
-      
-      // Remplacer les prix par les prix hebdomadaires
-      const updatedSubs = subs.map(sub => {
-        if (sub.title === 'Essentiel') {
-          return { ...sub, price: '6.99', localizedPrice: '6,99 €/semaine' };
-        } else if (sub.title === 'Pro') {
-          return { ...sub, price: '12.99', localizedPrice: '12,99 €/semaine' };
-        } else if (sub.title === 'Premium') {
-          return { ...sub, price: '24.99', localizedPrice: '24,99 €/semaine' };
-        }
-        return sub;
-      });
-      
-      setPlans(updatedSubs);
-      setLoading(false);
-    })();
+    if (error) {
+      Alert.alert('Erreur', error);
+    }
   }, []);
 
-  const handleUpgrade = async (productId: string, planName: string) => {
+  const handleUpgrade = async (priceId: string, planName: string) => {
     try {
-      setProcessing(productId);
+      setProcessing(priceId);
       
-      // Initier l'achat via l'App Store
-      await acheterAbonnement(productId);
-      
-      // Mettre à jour le profil utilisateur avec le plan choisi
-      if (user) {
-        await updateUserProfile({
-          plan: planName.toLowerCase()
-        });
-      }
-      
-      // Rafraîchir les informations d'abonnement
-      await refreshAbonnement();
-      
-      Alert.alert('Abonnement mis à jour', 'Votre abonnement a bien été activé.');
+      // Create Stripe checkout session
+      await createCheckoutSession(priceId);
     } catch (e) {
-      Alert.alert('Erreur', 'Impossible de finaliser l\'abonnement.');
+      Alert.alert('Erreur', 'Impossible de créer la session de paiement.');
     } finally {
       setProcessing('');
     }
   };
 
-  const getProductId = (planName: string): string => {
+  const handleCancelSubscription = async () => {
+    Alert.alert(
+      'Annuler l\'abonnement',
+      'Êtes-vous sûr de vouloir annuler votre abonnement ? Il restera actif jusqu\'à la fin de la période de facturation.',
+      [
+        { text: 'Non', style: 'cancel' },
+        { 
+          text: 'Oui, annuler', 
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await cancelSubscription();
+              Alert.alert('Succès', 'Votre abonnement sera annulé à la fin de la période de facturation.');
+            } catch (error) {
+              Alert.alert('Erreur', 'Impossible d\'annuler l\'abonnement.');
+            }
+          }
+        }
+      ]
+    );
+  };
+
+  const getPriceId = (planName: string): string => {
     switch (planName) {
-      case 'Essentiel': return 'easygarage.essentiel';
-      case 'Pro': return 'easygarage.pro';
-      case 'Premium': return 'easygarage.premium';
+      case 'Essentiel': return 'price_essentiel_weekly';
+      case 'Pro': return 'price_pro_weekly';
+      case 'Premium': return 'price_premium_weekly';
       default: return '';
     }
   };
@@ -113,25 +115,39 @@ export default function SubscriptionScreen() {
   const styles = createStyles(colors);
 
   const renderCurrentPlan = () => {
-    if (!abonnementUtilisateur) return null;
-    const Icon = PLAN_ICONS[abonnementUtilisateur.abonnement] || Star;
-    // Cherche le prix du plan actuel dans la liste des plans
-    const currentPlan = plans.find(p => p.title === abonnementUtilisateur.abonnement);
+    if (!subscription) return null;
+    const currentProduct = getCurrentProduct();
+    const Icon = PLAN_ICONS[subscription.productName] || Star;
+    
     return (
       <View style={styles.currentCard}>
         <View style={styles.currentHeaderRow}>
           <Icon size={36} color={colors.primary} style={{ marginRight: 14 }} />
           <View style={{ flex: 1 }}>
             <View style={styles.currentPlanRow}>
-              <Text style={styles.planName}>{abonnementUtilisateur.abonnement}</Text>
-              <View style={[styles.badge, { backgroundColor: abonnementUtilisateur.statut === 'actif' ? colors.success : colors.error }]}> 
-                <Text style={styles.badgeText}>{abonnementUtilisateur.statut === 'actif' ? 'Actif' : 'Expiré'}</Text>
+              <Text style={styles.planName}>{subscription.productName}</Text>
+              <View style={[styles.badge, { backgroundColor: isSubscriptionActive() ? colors.success : colors.error }]}> 
+                <Text style={styles.badgeText}>{isSubscriptionActive() ? 'Actif' : 'Expiré'}</Text>
               </View>
             </View>
-            <Text style={styles.planPrice}>{currentPlan?.localizedPrice || ''}</Text>
+            <Text style={styles.planPrice}>
+              {subscription.productName === 'Premium' ? '24,99 €/semaine' :
+               subscription.productName === 'Pro' ? '12,99 €/semaine' :
+               subscription.productName === 'Essentiel' ? '6,99 €/semaine' : ''}
+            </Text>
           </View>
         </View>
-        <Text style={styles.renewal}>Renouvellement : {new Date(abonnementUtilisateur.dateFin).toLocaleDateString('fr-FR')}</Text>
+        <Text style={styles.renewal}>
+          Renouvellement : {subscription.currentPeriodEnd?.toLocaleDateString('fr-FR')}
+        </Text>
+        
+        <TouchableOpacity 
+          style={styles.cancelButton}
+          onPress={handleCancelSubscription}
+        >
+          <X size={16} color={colors.error} />
+          <Text style={styles.cancelButtonText}>Annuler l'abonnement</Text>
+        </TouchableOpacity>
       </View>
     );
   };
@@ -157,25 +173,30 @@ export default function SubscriptionScreen() {
               showsHorizontalScrollIndicator={false} 
               contentContainerStyle={styles.plansContainer}
             >
-              {plans.map(plan => {
-                const Icon = PLAN_ICONS[plan.title] || Star;
-                const isCurrent = abonnementUtilisateur?.abonnement === plan.title;
-                const productId = getProductId(plan.title);
+              {getAvailableProducts().map(product => {
+                const Icon = PLAN_ICONS[product.name] || Star;
+                const isCurrent = subscription?.productName === product.name;
+                const priceId = product.priceId;
+                
+                // Get localized price
+                const localizedPrice = product.name === 'Premium' ? '24,99 €/semaine' :
+                                    product.name === 'Pro' ? '12,99 €/semaine' :
+                                    product.name === 'Essentiel' ? '6,99 €/semaine' : '';
                 
                 return (
-                  <View key={plan.productId || productId} style={[
+                  <View key={product.priceId} style={[
                     styles.planCard,
                     isCurrent && styles.planCardCurrent
                   ]}>
                     <View style={styles.planHeader}>
                       <Icon size={28} color={colors.primary} />
-                      <Text style={styles.planTitle}>{plan.title}</Text>
+                      <Text style={styles.planTitle}>{product.name}</Text>
                     </View>
                     
-                    <Text style={styles.planPrice}>{plan.localizedPrice}</Text>
+                    <Text style={styles.planPrice}>{localizedPrice}</Text>
                     
                     <View style={styles.featuresList}>
-                      {PLAN_FEATURES[plan.title]?.map((feature, i) => (
+                      {PLAN_FEATURES[product.name]?.map((feature, i) => (
                         <View key={i} style={styles.featureRow}>
                           <Check size={16} color={colors.success} />
                           <Text style={styles.featureText}>{feature}</Text>
@@ -186,16 +207,16 @@ export default function SubscriptionScreen() {
                     <TouchableOpacity
                       style={[
                         styles.chooseButton,
-                        (isCurrent || processing === (plan.productId || productId)) && styles.chooseButtonDisabled
+                        (isCurrent || processing === priceId) && styles.chooseButtonDisabled
                       ]}
-                      onPress={() => handleUpgrade(plan.productId || productId, plan.title)}
-                      disabled={isCurrent || processing === (plan.productId || productId)}
+                      onPress={() => handleUpgrade(priceId, product.name)}
+                      disabled={isCurrent || processing === priceId}
                     >
-                      {processing === (plan.productId || productId) ? (
+                      {processing === priceId ? (
                         <ActivityIndicator color={colors.background} size="small" />
                       ) : (
                         <Text style={styles.chooseButtonText}>
-                          {isCurrent ? 'Plan actuel' : 'Choisir ce plan'}
+                          {isCurrent ? 'Plan actuel' : 'S\'abonner'}
                         </Text>
                       )}
                     </TouchableOpacity>
@@ -207,25 +228,21 @@ export default function SubscriptionScreen() {
         </View>
         
         <View style={{ alignItems: 'center', marginTop: 8 }}>
+          <View style={styles.stripeInfo}>
+            <CreditCard size={16} color={colors.textSecondary} />
+            <Text style={styles.stripeText}>Paiements sécurisés par Stripe</Text>
+          </View>
+        </View>
+        
+        <View style={{ alignItems: 'center', marginTop: 16 }}>
           <TouchableOpacity 
-            style={styles.restoreButton} 
-            onPress={async () => {
-              try {
-                setLoading(true);
-                const restored = await refreshAbonnement();
-                if (restored) {
-                  Alert.alert('Succès', 'Vos achats ont été restaurés avec succès.');
-                } else {
-                  Alert.alert('Information', 'Aucun achat à restaurer n\'a été trouvé.');
-                }
-              } catch (error) {
-                Alert.alert('Erreur', 'Impossible de restaurer vos achats.');
-              } finally {
-                setLoading(false);
-              }
+            style={styles.manageButton}
+            onPress={() => {
+              // Open Stripe customer portal (you'll need to implement this)
+              Alert.alert('Gestion des paiements', 'Fonctionnalité bientôt disponible');
             }}
-          > 
-            <Text style={styles.restoreText}>Restaurer mes achats</Text>
+          >
+            <Text style={styles.manageText}>Gérer mes paiements</Text>
             <ArrowRight size={18} color={colors.primary} />
           </TouchableOpacity>
         </View>
@@ -375,7 +392,37 @@ const createStyles = (colors: any) => StyleSheet.create({
     fontWeight: '700',
     fontSize: 16,
   },
-  restoreButton: {
+  cancelButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.error + '20',
+    borderRadius: 12,
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    marginTop: 12,
+    gap: 6,
+  },
+  cancelButtonText: {
+    color: colors.error,
+    fontWeight: '600',
+    fontSize: 14,
+  },
+  stripeInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    backgroundColor: colors.surface,
+    borderRadius: 20,
+  },
+  stripeText: {
+    color: colors.textSecondary,
+    fontSize: 12,
+    fontWeight: '500',
+  },
+  manageButton: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
@@ -391,7 +438,7 @@ const createStyles = (colors: any) => StyleSheet.create({
     shadowRadius: 6,
     elevation: 1,
   },
-  restoreText: {
+  manageText: {
     color: colors.primary,
     fontWeight: '700',
     fontSize: 16,
