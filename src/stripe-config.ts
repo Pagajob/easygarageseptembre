@@ -1,37 +1,50 @@
 export interface StripeProduct {
+  id: string;
   priceId: string;
   name: string;
   description: string;
-  mode: 'subscription' | 'payment';
+  price: number;
+  currency: string;
+  mode: 'payment' | 'subscription';
 }
 
 export const stripeProducts: StripeProduct[] = [
   {
-    priceId: 'price_premium_weekly', // TODO: Remplacer par votre vrai Price ID depuis Stripe Dashboard
+    id: 'prod_T90LTp1TFT79ne',
+    priceId: 'price_1SCiLELi5MiDs4BadnFeE98I',
     name: 'Premium',
-    description: 'Véhicules et utilisateurs illimités, EDL 1 an, multi-sociétés, automatisations, API adresse, support téléphonique',
-    mode: 'subscription'
+    description: 'Access to all premium features with unlimited usage',
+    price: 24.99,
+    currency: 'eur',
+    mode: 'subscription',
   },
   {
-    priceId: 'price_pro_weekly', // TODO: Remplacer par votre vrai Price ID depuis Stripe Dashboard
+    id: 'prod_T90L8LqCs6V8Qm',
+    priceId: 'price_1SCiKjLi5MiDs4BajM8glHbI',
     name: 'Pro',
-    description: '30 véhicules, réservations illimitées, 5 utilisateurs, EDL 1 mois, stats avancées, support prioritaire',
-    mode: 'subscription'
+    description: 'Professional features for growing businesses',
+    price: 12.99,
+    currency: 'eur',
+    mode: 'subscription',
   },
   {
-    priceId: 'price_essentiel_weekly', // TODO: Remplacer par votre vrai Price ID depuis Stripe Dashboard
+    id: 'prod_T90KVQEWn1YG7a',
+    priceId: 'price_1SCiKHLi5MiDs4BaR4YtOo2j',
     name: 'Essentiel',
-    description: '5 véhicules, 50 réservations/mois, 1 utilisateur, EDL 7 jours, export CSV/PDF, logo perso',
-    mode: 'subscription'
-  }
+    description: 'Essential features to get started',
+    price: 6.99,
+    currency: 'eur',
+    mode: 'subscription',
+  },
 ];
 
-// Pricing Table Configuration (pour Web uniquement)
-export const STRIPE_CONFIG = {
-  publishableKey: process.env.EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY || '',
-  pricingTableId: process.env.EXPO_PUBLIC_STRIPE_PRICING_TABLE_ID || '',
-};
-
-export const getProductByPriceId = (priceId: string): StripeProduct | undefined => {
+export function getProductByPriceId(priceId: string): StripeProduct | undefined {
   return stripeProducts.find(product => product.priceId === priceId);
-};
+}
+
+export function formatPrice(price: number, currency: string): string {
+  return new Intl.NumberFormat('fr-FR', {
+    style: 'currency',
+    currency: currency.toUpperCase(),
+  }).format(price);
+}
