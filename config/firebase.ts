@@ -1,5 +1,5 @@
 import { initializeApp } from 'firebase/app';
-import { getFirestore, connectFirestoreEmulator } from 'firebase/firestore';
+import { getFirestore, connectFirestoreEmulator, initializeFirestore, persistentLocalCache, persistentMultipleTabManager } from 'firebase/firestore';
 import { getStorage, connectStorageEmulator } from 'firebase/storage';
 import { getAuth, connectAuthEmulator, setPersistence, indexedDBLocalPersistence } from 'firebase/auth';
 import { Platform } from 'react-native';
@@ -16,8 +16,15 @@ const firebaseConfig = {
 // Initialize Firebase
 const app = initializeApp(firebaseConfig);
 
-// Initialize Firebase services
-export const db = getFirestore(app);
+// Initialize Firestore with cache settings for web
+export const db = Platform.OS === 'web'
+  ? initializeFirestore(app, {
+      localCache: persistentLocalCache({
+        tabManager: persistentMultipleTabManager()
+      })
+    })
+  : getFirestore(app);
+
 export const storage = getStorage(app);
 export const auth = getAuth(app);
 
