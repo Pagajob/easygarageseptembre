@@ -141,13 +141,16 @@ export function useContracts() {
         throw new Error('Utilisateur non connecté');
       }
 
-      // Send email (corrigé à 4 arguments)
+      const contractData = {
+        vehicule_modele: `${vehicle.marque} ${vehicle.modele}`
+      } as any;
+
       await ContractService.sendContractByEmail(
         contractUrl,
         client.email,
         user.uid,
-        `${vehicle.marque} ${vehicle.modele}`,
-        contractData // ou l'objet approprié selon le contexte
+        companyInfo?.nom || 'Tajirent',
+        contractData
       );
 
       // Find contract in Firestore

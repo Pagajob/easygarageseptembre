@@ -397,7 +397,13 @@ export default function EnhancedEDLWizard({
       'Êtes-vous sûr de vouloir finaliser l\'état des lieux ? Cette action ne peut pas être annulée.',
       [
         { text: 'Annuler', style: 'cancel' },
-        { text: 'Finaliser', onPress: () => onComplete({ ...edlData, renterSignature, clientSignature }) }
+        { text: 'Finaliser', onPress: () => onComplete({
+          ...edlData,
+          renterSignature,
+          clientSignature,
+          accessoires,
+          degats: ''
+        }) }
       ]
     );
   };
