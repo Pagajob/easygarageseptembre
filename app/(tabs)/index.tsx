@@ -1,86 +1,84 @@
 import { View, Text, StyleSheet, ScrollView } from 'react-native';
 import { useEffect, useState } from 'react';
-import { supabase } from '@/lib/supabase';
 import { router } from 'expo-router';
-import { User } from '@supabase/supabase-js';
-import { getProductByPriceId, formatPrice } from '@/src/stripe-config';
-
-interface UserSubscription {
-  subscription_status: string;
-  price_id: string | null;
-  current_period_end: number | null;
-  cancel_at_period_end: boolean;
-}
+import { useAuth } from '@/contexts/AuthContext';
 
 export default function HomeScreen() {
-  const [user, setUser] = useState<User | null>(null);
-  const [subscription, setSubscription] = useState<UserSubscription | null>(null);
+  const { user, abonnementUtilisateur } = useAuth();
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     checkAuth();
-  }, []);
+  }, [user]);
 
   const checkAuth = async () => {
-    try {
-      const { data: { user } } = await supabase.auth.getUser();
-      
-      if (!user) {
-        router.replace('/auth/login');
-        return;
-      }
+    setLoading(true);
 
-      setUser(user);
-      await fetchSubscription();
-    } catch (error) {
-      console.error('Auth check error:', error);
+    if (!user) {
       router.replace('/auth/login');
-    } finally {
-      setLoading(false);
+      return;
     }
-  };
 
-  const fetchSubscription = async () => {
-    try {
-      const { data, error } = await supabase
-        .from('stripe_user_subscriptions')
-        .select('subscription_status, price_id, current_period_end, cancel_at_period_end')
-        .maybeSingle();
-
-      if (error) {
-        console.error('Error fetching subscription:', error);
-        return;
-      }
-
-      setSubscription(data);
-    } catch (error) {
-      console.error('Error fetching subscription:', error);
-    }
+    setLoading(false);
   };
 
   const getSubscriptionInfo = () => {
-    if (!subscription || !subscription.price_id) {
-      return { planName: 'No active plan', status: 'inactive' };
+    if (!abonnementUtilisateur || abonnementUtilisateur.abonnement === 'Gratuit') {
+      return {
+        planName: 'Plan Gratuit',
+        status: 'actif',
+        features: [
+          '1 véhicule',
+          '3 réservations',
+          '1 utilisateur',
+          'EDL local 24h'
+        ]
+      };
     }
 
-    const product = getProductByPriceId(subscription.price_id);
-    const planName = product ? product.name : 'Unknown Plan';
-    
+    const planPrices: Record<string, string> = {
+      'Essentiel': '6,99 €/semaine',
+      'Pro': '12,99 €/semaine',
+      'Premium': '24,99 €/semaine',
+    };
+
+    const planFeatures: Record<string, string[]> = {
+      'Essentiel': [
+        '5 véhicules',
+        '50 réservations/mois',
+        '1 utilisateur',
+        'EDL stocké 7 jours',
+        'Export CSV/PDF',
+      ],
+      'Pro': [
+        '30 véhicules',
+        'Réservations illimitées',
+        '5 utilisateurs',
+        'EDL stocké 1 mois',
+        'Statistiques avancées',
+      ],
+      'Premium': [
+        'Véhicules illimités',
+        'Utilisateurs illimités',
+        'EDL stocké 1 an',
+        'Multi-sociétés',
+        'Automatisations',
+      ],
+    };
+
     return {
-      planName,
-      status: subscription.subscription_status,
-      price: product ? formatPrice(product.price, product.currency) : '',
-      endDate: subscription.current_period_end 
-        ? new Date(subscription.current_period_end * 1000).toLocaleDateString()
-        : null,
-      willCancel: subscription.cancel_at_period_end,
+      planName: abonnementUtilisateur.abonnement,
+      status: abonnementUtilisateur.statut,
+      price: planPrices[abonnementUtilisateur.abonnement] || '',
+      endDate: new Date(abonnementUtilisateur.dateFin).toLocaleDateString('fr-FR'),
+      features: planFeatures[abonnementUtilisateur.abonnement] || [],
     };
   };
 
   if (loading) {
     return (
       <View style={styles.container}>
-        <Text style={styles.loadingText}>Loading...</Text>
+        <Text style={styles.loadingText}>Chargement...</Text>
       </View>
     );
   }
@@ -90,25 +88,27 @@ export default function HomeScreen() {
   return (
     <ScrollView style={styles.container}>
       <View style={styles.header}>
-        <Text style={styles.title}>Welcome back!</Text>
+        <Text style={styles.title}>Bienvenue !</Text>
         <Text style={styles.subtitle}>
           {user?.email}
         </Text>
       </View>
 
       <View style={styles.subscriptionCard}>
-        <Text style={styles.cardTitle}>Current Plan</Text>
+        <Text style={styles.cardTitle}>Abonnement Actuel</Text>
         <Text style={styles.planName}>{subscriptionInfo.planName}</Text>
-        
-        {subscriptionInfo.status !== 'inactive' && (
+
+        {subscriptionInfo.status === 'actif' && (
           <>
-            <Text style={styles.planPrice}>{subscriptionInfo.price}/month</Text>
+            {subscriptionInfo.price && (
+              <Text style={styles.planPrice}>{subscriptionInfo.price}</Text>
+            )}
             <Text style={styles.status}>
-              Status: {subscriptionInfo.status}
+              Statut: {subscriptionInfo.status}
             </Text>
             {subscriptionInfo.endDate && (
               <Text style={styles.endDate}>
-                {subscriptionInfo.willCancel ? 'Cancels on' : 'Renews on'}: {subscriptionInfo.endDate}
+                Renouvellement: {subscriptionInfo.endDate}
               </Text>
             )}
           </>
@@ -116,10 +116,10 @@ export default function HomeScreen() {
       </View>
 
       <View style={styles.featuresCard}>
-        <Text style={styles.cardTitle}>Features</Text>
-        <Text style={styles.featureText}>• Access to all app features</Text>
-        <Text style={styles.featureText}>• Priority customer support</Text>
-        <Text style={styles.featureText}>• Regular updates and improvements</Text>
+        <Text style={styles.cardTitle}>Fonctionnalités</Text>
+        {subscriptionInfo.features.map((feature, index) => (
+          <Text key={index} style={styles.featureText}>• {feature}</Text>
+        ))}
       </View>
     </ScrollView>
   );
