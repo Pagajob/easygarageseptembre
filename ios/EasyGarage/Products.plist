@@ -6,7 +6,7 @@
     <array>
         <dict>
             <key>product_id</key>
-            <string>easygarage.essentiel.weekly</string>
+            <string>easygarage.essentiel</string>
             <key>title</key>
             <string>Essentiel</string>
             <key>description</key>
@@ -24,7 +24,7 @@
         </dict>
         <dict>
             <key>product_id</key>
-            <string>easygarage.pro.weekly</string>
+            <string>easygarage.pro</string>
             <key>title</key>
             <string>Pro</string>
             <key>description</key>
@@ -42,7 +42,7 @@
         </dict>
         <dict>
             <key>product_id</key>
-            <string>easygarage.premium.weekly</string>
+            <string>easygarage.premium</string>
             <key>title</key>
             <string>Premium</string>
             <key>description</key>

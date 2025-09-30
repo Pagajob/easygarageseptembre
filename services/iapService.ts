@@ -2,17 +2,18 @@ import * as RNIap from 'react-native-iap';
 import { Platform } from 'react-native';
 
 // IDs des produits d'abonnement créés sur App Store Connect
+// Ces IDs DOIVENT correspondre EXACTEMENT à ceux dans App Store Connect
 export const productIds = [
-  'easygarage.essentiel.weekly',
-  'easygarage.pro.weekly',
-  'easygarage.premium.weekly',
-];
-
-// IDs des anciens produits (pour compatibilité)
-export const legacyProductIds = [
   'easygarage.essentiel',
   'easygarage.pro',
   'easygarage.premium',
+];
+
+// IDs alternatifs avec .weekly (pour compatibilité future)
+export const weeklyProductIds = [
+  'easygarage.essentiel.weekly',
+  'easygarage.pro.weekly',
+  'easygarage.premium.weekly',
 ];
 
 export async function initIAP() {
@@ -42,10 +43,10 @@ export async function initIAP() {
 export async function getSubscriptions() {
   try {
     if (Platform.OS === 'web') {
-      // Mock data for web platform
+      // Mock data for web platform - IDs must match App Store Connect
       return [
         {
-          productId: 'easygarage.essentiel.weekly',
+          productId: 'easygarage.essentiel',
           title: 'Essentiel',
           description: '5 véhicules, 50 réservations/mois, 1 utilisateur, EDL 7 jours, export CSV/PDF, logo perso',
           price: '6.99',
@@ -53,7 +54,7 @@ export async function getSubscriptions() {
           localizedPrice: '6,99 €/semaine',
         },
         {
-          productId: 'easygarage.pro.weekly',
+          productId: 'easygarage.pro',
           title: 'Pro',
           description: '30 véhicules, réservations illimitées, 5 utilisateurs, EDL 1 mois, stats avancées, support prioritaire',
           price: '12.99',
@@ -61,7 +62,7 @@ export async function getSubscriptions() {
           localizedPrice: '12,99 €/semaine',
         },
         {
-          productId: 'easygarage.premium.weekly',
+          productId: 'easygarage.premium',
           title: 'Premium',
           description: 'Véhicules et utilisateurs illimités, EDL 1 an, multi-sociétés, automatisations, API adresse, support téléphonique',
           price: '24.99',

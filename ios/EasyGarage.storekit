@@ -88,7 +88,7 @@
               "locale" : "fr_FR"
             }
           ],
-          "productID" : "easygarage.essentiel.weekly",
+          "productID" : "easygarage.essentiel",
           "recurringSubscriptionPeriod" : "P1W",
           "referenceName" : "Essentiel Weekly",
           "subscriptionGroupID" : "21540976",
@@ -116,7 +116,7 @@
               "locale" : "fr_FR"
             }
           ],
-          "productID" : "easygarage.pro.weekly",
+          "productID" : "easygarage.pro",
           "recurringSubscriptionPeriod" : "P1W",
           "referenceName" : "Pro Weekly",
           "subscriptionGroupID" : "21540976",
@@ -144,7 +144,7 @@
               "locale" : "fr_FR"
             }
           ],
-          "productID" : "easygarage.premium.weekly",
+          "productID" : "easygarage.premium",
           "recurringSubscriptionPeriod" : "P1W",
           "referenceName" : "Premium Weekly",
           "subscriptionGroupID" : "21540976",
