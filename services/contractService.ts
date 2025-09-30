@@ -229,14 +229,23 @@ startxref
     contractData: ContractData
   ): Promise<boolean> {
     try {
-      // Use absolute URL for API calls
+      // On mobile, skip email sending as API routes don't work
+      // Return true to allow the flow to continue
+      if (Platform.OS !== 'web') {
+        console.log('[iOS] Contract email skipped - API routes not available on mobile');
+        console.log('[iOS] Contract URL:', contractUrl);
+        console.log('[iOS] User can share the contract manually');
+        return true;
+      }
+
+      // Use absolute URL for API calls (Web only)
       const apiUrl =
         (typeof window !== 'undefined' && window.location && window.location.origin)
           ? `${window.location.origin}/api/send-email`
           : process.env.EXPO_PUBLIC_API_URL
             ? `${process.env.EXPO_PUBLIC_API_URL}/api/send-email`
             : 'https://easygarage-app.vercel.app/api/send-email';
-      
+
       const response = await fetch(apiUrl, {
         method: 'POST',
         headers: {
