@@ -1,6 +1,6 @@
-import Stripe from 'stripe';
-import { initializeApp, cert, getApps } from 'firebase-admin/app';
-import { getFirestore } from 'firebase-admin/firestore';
+import Stripe from 'npm:stripe@17.7.0';
+import { initializeApp, cert, getApps } from 'npm:firebase-admin@13.4.0/app';
+import { getFirestore } from 'npm:firebase-admin@13.4.0/firestore';
 import { stripeProducts } from '@/src/stripe-config';
 
 const corsHeaders = {
@@ -13,7 +13,7 @@ const corsHeaders = {
 let app: any;
 if (!getApps().length) {
   try {
-    const firebaseKeyBase64 = process.env.FIREBASE_KEY_BASE64;
+    const firebaseKeyBase64 = Deno.env.get('FIREBASE_KEY_BASE64');
     if (firebaseKeyBase64) {
       const serviceAccount = JSON.parse(atob(firebaseKeyBase64));
       app = initializeApp({
@@ -37,8 +37,8 @@ export async function POST(request: Request) {
   }
 
   try {
-    const stripeSecretKey = process.env.STRIPE_SECRET_KEY;
-    const stripeWebhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
+    const stripeSecretKey = Deno.env.get('STRIPE_SECRET_KEY');
+    const stripeWebhookSecret = Deno.env.get('STRIPE_WEBHOOK_SECRET');
     
     if (!stripeSecretKey || !stripeWebhookSecret) {
       return new Response(
@@ -51,7 +51,7 @@ export async function POST(request: Request) {
     }
 
     const stripe = new Stripe(stripeSecretKey, {
-      apiVersion: '2024-06-20',
+      apiVersion: '2024-12-18.acacia',
     });
 
     // Get the signature from headers

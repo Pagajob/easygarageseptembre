@@ -1,50 +1,31 @@
 export interface StripeProduct {
-  id: string;
   priceId: string;
   name: string;
   description: string;
-  price: number;
-  currency: string;
-  mode: 'payment' | 'subscription';
+  mode: 'subscription' | 'payment';
 }
 
 export const stripeProducts: StripeProduct[] = [
   {
-    id: 'prod_T90LTp1TFT79ne',
-    priceId: 'price_1SCiLELi5MiDs4BadnFeE98I',
+    priceId: 'price_premium_weekly', // Replace with your actual Stripe price ID
     name: 'Premium',
-    description: 'Access to all premium features with unlimited usage',
-    price: 24.99,
-    currency: 'eur',
-    mode: 'subscription',
+    description: 'Véhicules et utilisateurs illimités, EDL 1 an, multi-sociétés, automatisations, API adresse, support téléphonique',
+    mode: 'subscription'
   },
   {
-    id: 'prod_T90L8LqCs6V8Qm',
-    priceId: 'price_1SCiKjLi5MiDs4BajM8glHbI',
+    priceId: 'price_pro_weekly', // Replace with your actual Stripe price ID
     name: 'Pro',
-    description: 'Professional features for growing businesses',
-    price: 12.99,
-    currency: 'eur',
-    mode: 'subscription',
+    description: '30 véhicules, réservations illimitées, 5 utilisateurs, EDL 1 mois, stats avancées, support prioritaire',
+    mode: 'subscription'
   },
   {
-    id: 'prod_T90KVQEWn1YG7a',
-    priceId: 'price_1SCiKHLi5MiDs4BaR4YtOo2j',
+    priceId: 'price_essentiel_weekly', // Replace with your actual Stripe price ID
     name: 'Essentiel',
-    description: 'Essential features to get started',
-    price: 6.99,
-    currency: 'eur',
-    mode: 'subscription',
-  },
+    description: '5 véhicules, 50 réservations/mois, 1 utilisateur, EDL 7 jours, export CSV/PDF, logo perso',
+    mode: 'subscription'
+  }
 ];
 
-export function getProductByPriceId(priceId: string): StripeProduct | undefined {
+export const getProductByPriceId = (priceId: string): StripeProduct | undefined => {
   return stripeProducts.find(product => product.priceId === priceId);
-}
-
-export function formatPrice(price: number, currency: string): string {
-  return new Intl.NumberFormat('fr-FR', {
-    style: 'currency',
-    currency: currency.toUpperCase(),
-  }).format(price);
-}
+};

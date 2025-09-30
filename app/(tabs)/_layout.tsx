@@ -1,50 +1,75 @@
 import { Tabs } from 'expo-router';
-import { Home, User, CreditCard } from 'lucide-react-native';
+import { Car, Users, Calendar, ChartBar as BarChart3, Settings } from 'lucide-react-native';
+import { useTheme } from '@/contexts/ThemeContext';
+import { Platform } from 'react-native';
 
 export default function TabLayout() {
+  const { colors } = useTheme();
+  const isIOS = Platform.OS === 'ios';
+
   return (
     <Tabs
       screenOptions={{
         headerShown: false,
+        tabBarActiveTintColor: colors.primary,
+        tabBarInactiveTintColor: colors.textSecondary,
         tabBarStyle: {
-          backgroundColor: '#ffffff',
-          borderTopWidth: 1,
-          borderTopColor: '#e5e7eb',
-          paddingBottom: 8,
-          paddingTop: 8,
-          height: 80,
+          backgroundColor: colors.background,
+          borderTopColor: isIOS ? colors.border + '80' : colors.border,
+          height: isIOS ? 85 : 60,
+          paddingTop: isIOS ? 10 : 0,
+          paddingBottom: isIOS ? 30 : 10,
         },
-        tabBarActiveTintColor: '#3b82f6',
-        tabBarInactiveTintColor: '#6b7280',
         tabBarLabelStyle: {
           fontSize: 12,
           fontWeight: '500',
+        },
+        tabBarIconStyle: {
+          marginBottom: -4,
         },
       }}>
       <Tabs.Screen
         name="index"
         options={{
-          title: 'Home',
+          title: 'Tableau de bord',
           tabBarIcon: ({ size, color }) => (
-            <Home size={size} color={color} />
+            <BarChart3 size={isIOS ? 22 : size} color={color} />
           ),
         }}
       />
       <Tabs.Screen
-        name="pricing"
+        name="vehicles"
         options={{
-          title: 'Pricing',
+          title: 'Véhicules',
           tabBarIcon: ({ size, color }) => (
-            <CreditCard size={size} color={color} />
+            <Car size={isIOS ? 22 : size} color={color} />
           ),
         }}
       />
       <Tabs.Screen
-        name="profile"
+        name="clients"
         options={{
-          title: 'Profile',
+          title: 'Clients',
           tabBarIcon: ({ size, color }) => (
-            <User size={size} color={color} />
+            <Users size={isIOS ? 22 : size} color={color} />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="reservations"
+        options={{
+          title: 'Réservations',
+          tabBarIcon: ({ size, color }) => (
+            <Calendar size={isIOS ? 22 : size} color={color} />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="settings"
+        options={{
+          title: 'Paramètres',
+          tabBarIcon: ({ size, color }) => (
+            <Settings size={isIOS ? 22 : size} color={color} />
           ),
         }}
       />
