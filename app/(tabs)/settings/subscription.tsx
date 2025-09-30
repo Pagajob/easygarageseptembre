@@ -1,9 +1,10 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Alert, ScrollView, SafeAreaView, Image } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Alert, ScrollView, SafeAreaView, Platform, Linking } from 'react-native';
 import { useAuth } from '@/contexts/AuthContext';
 import { useTheme } from '@/contexts/ThemeContext';
 import { getSubscriptions } from '@/services/iapService';
 import { Check, Star, Shield, Users, FileText, ArrowRight } from 'lucide-react-native';
+import { stripeProducts } from '@/src/stripe-config';
 
 const PLAN_FEATURES: Record<string, string[]> = {
   'Gratuit': [
@@ -47,57 +48,125 @@ const PLAN_ICONS: Record<string, any> = {
   'Premium': Shield,
 };
 
+const PLAN_PRICES: Record<string, string> = {
+  'Essentiel': '6,99 €/semaine',
+  'Pro': '12,99 €/semaine',
+  'Premium': '24,99 €/semaine',
+};
+
 export default function SubscriptionScreen() {
   const { abonnementUtilisateur, acheterAbonnement, refreshAbonnement, user, updateUserProfile } = useAuth();
   const { colors } = useTheme();
   const [plans, setPlans] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [processing, setProcessing] = useState('');
+  const isWeb = Platform.OS === 'web';
 
   useEffect(() => {
     (async () => {
       setLoading(true);
-      const subs = await getSubscriptions();
-      
-      // Remplacer les prix par les prix hebdomadaires
-      const updatedSubs = subs.map(sub => {
-        if (sub.title === 'Essentiel') {
-          return { ...sub, price: '6.99', localizedPrice: '6,99 €/semaine' };
-        } else if (sub.title === 'Pro') {
-          return { ...sub, price: '12.99', localizedPrice: '12,99 €/semaine' };
-        } else if (sub.title === 'Premium') {
-          return { ...sub, price: '24.99', localizedPrice: '24,99 €/semaine' };
-        }
-        return sub;
-      });
-      
-      setPlans(updatedSubs);
+
+      if (isWeb) {
+        // Sur le web, utiliser les plans Stripe depuis la config
+        const webPlans = stripeProducts.map(product => ({
+          productId: product.priceId,
+          title: product.name,
+          description: product.description,
+          price: PLAN_PRICES[product.name] || '',
+          localizedPrice: PLAN_PRICES[product.name] || '',
+        }));
+        setPlans(webPlans);
+      } else {
+        // Sur mobile, utiliser IAP
+        const subs = await getSubscriptions();
+        const updatedSubs = subs.map(sub => {
+          if (sub.title === 'Essentiel') {
+            return { ...sub, price: '6.99', localizedPrice: '6,99 €/semaine' };
+          } else if (sub.title === 'Pro') {
+            return { ...sub, price: '12.99', localizedPrice: '12,99 €/semaine' };
+          } else if (sub.title === 'Premium') {
+            return { ...sub, price: '24.99', localizedPrice: '24,99 €/semaine' };
+          }
+          return sub;
+        });
+        setPlans(updatedSubs);
+      }
+
       setLoading(false);
     })();
-  }, []);
+  }, [isWeb]);
 
-  const handleUpgrade = async (productId: string, planName: string) => {
+  const handleUpgradeWeb = async (priceId: string, planName: string) => {
+    try {
+      setProcessing(priceId);
+
+      if (!user) {
+        Alert.alert('Erreur', 'Vous devez être connecté pour souscrire un abonnement.');
+        return;
+      }
+
+      // Appeler l'API pour créer une session Stripe Checkout
+      const response = await fetch('/api/stripe/create-checkout', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          priceId: priceId,
+          userId: user.uid,
+          successUrl: `${window.location.origin}/subscription-success?session_id={CHECKOUT_SESSION_ID}`,
+          cancelUrl: `${window.location.origin}/subscription-cancel`,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (data.error) {
+        throw new Error(data.error);
+      }
+
+      // Rediriger vers Stripe Checkout
+      if (data.url) {
+        window.location.href = data.url;
+      }
+    } catch (error) {
+      console.error('Error creating checkout:', error);
+      Alert.alert('Erreur', 'Impossible de créer la session de paiement.');
+    } finally {
+      setProcessing('');
+    }
+  };
+
+  const handleUpgradeMobile = async (productId: string, planName: string) => {
     try {
       setProcessing(productId);
-      
+
       // Initier l'achat via l'App Store
       await acheterAbonnement(productId);
-      
+
       // Mettre à jour le profil utilisateur avec le plan choisi
       if (user) {
         await updateUserProfile({
           plan: planName.toLowerCase()
         });
       }
-      
+
       // Rafraîchir les informations d'abonnement
       await refreshAbonnement();
-      
+
       Alert.alert('Abonnement mis à jour', 'Votre abonnement a bien été activé.');
     } catch (e) {
       Alert.alert('Erreur', 'Impossible de finaliser l\'abonnement.');
     } finally {
       setProcessing('');
+    }
+  };
+
+  const handleUpgrade = (productId: string, planName: string) => {
+    if (isWeb) {
+      handleUpgradeWeb(productId, planName);
+    } else {
+      handleUpgradeMobile(productId, planName);
     }
   };
 
@@ -115,7 +184,6 @@ export default function SubscriptionScreen() {
   const renderCurrentPlan = () => {
     if (!abonnementUtilisateur) return null;
     const Icon = PLAN_ICONS[abonnementUtilisateur.abonnement] || Star;
-    // Cherche le prix du plan actuel dans la liste des plans
     const currentPlan = plans.find(p => p.title === abonnementUtilisateur.abonnement);
     return (
       <View style={styles.currentCard}>
@@ -124,7 +192,7 @@ export default function SubscriptionScreen() {
           <View style={{ flex: 1 }}>
             <View style={styles.currentPlanRow}>
               <Text style={styles.planName}>{abonnementUtilisateur.abonnement}</Text>
-              <View style={[styles.badge, { backgroundColor: abonnementUtilisateur.statut === 'actif' ? colors.success : colors.error }]}> 
+              <View style={[styles.badge, { backgroundColor: abonnementUtilisateur.statut === 'actif' ? colors.success : colors.error }]}>
                 <Text style={styles.badgeText}>{abonnementUtilisateur.statut === 'actif' ? 'Actif' : 'Expiré'}</Text>
               </View>
             </View>
@@ -140,30 +208,38 @@ export default function SubscriptionScreen() {
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
       <ScrollView style={styles.container} contentContainerStyle={styles.content}>
         <Text style={styles.pageTitle}>Gérer mon abonnement</Text>
-        
+
+        {isWeb && (
+          <View style={styles.platformBadge}>
+            <Text style={styles.platformBadgeText}>
+              Version Web - Paiement sécurisé par Stripe
+            </Text>
+          </View>
+        )}
+
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Abonnement en cours</Text>
           {renderCurrentPlan()}
         </View>
-        
+
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Choisir un forfait</Text>
-          
+
           {loading ? (
             <ActivityIndicator color={colors.primary} size="large" style={{ marginVertical: 30 }} />
           ) : (
-            <ScrollView 
-              horizontal 
-              showsHorizontalScrollIndicator={false} 
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
               contentContainerStyle={styles.plansContainer}
             >
               {plans.map(plan => {
                 const Icon = PLAN_ICONS[plan.title] || Star;
                 const isCurrent = abonnementUtilisateur?.abonnement === plan.title;
-                const productId = getProductId(plan.title);
-                
+                const productId = isWeb ? plan.productId : (plan.productId || getProductId(plan.title));
+
                 return (
-                  <View key={plan.productId || productId} style={[
+                  <View key={productId} style={[
                     styles.planCard,
                     isCurrent && styles.planCardCurrent
                   ]}>
@@ -171,9 +247,9 @@ export default function SubscriptionScreen() {
                       <Icon size={28} color={colors.primary} />
                       <Text style={styles.planTitle}>{plan.title}</Text>
                     </View>
-                    
+
                     <Text style={styles.planPrice}>{plan.localizedPrice}</Text>
-                    
+
                     <View style={styles.featuresList}>
                       {PLAN_FEATURES[plan.title]?.map((feature, i) => (
                         <View key={i} style={styles.featureRow}>
@@ -182,16 +258,16 @@ export default function SubscriptionScreen() {
                         </View>
                       ))}
                     </View>
-                    
+
                     <TouchableOpacity
                       style={[
                         styles.chooseButton,
-                        (isCurrent || processing === (plan.productId || productId)) && styles.chooseButtonDisabled
+                        (isCurrent || processing === productId) && styles.chooseButtonDisabled
                       ]}
-                      onPress={() => handleUpgrade(plan.productId || productId, plan.title)}
-                      disabled={isCurrent || processing === (plan.productId || productId)}
+                      onPress={() => handleUpgrade(productId, plan.title)}
+                      disabled={isCurrent || processing === productId}
                     >
-                      {processing === (plan.productId || productId) ? (
+                      {processing === productId ? (
                         <ActivityIndicator color={colors.background} size="small" />
                       ) : (
                         <Text style={styles.chooseButtonText}>
@@ -205,31 +281,33 @@ export default function SubscriptionScreen() {
             </ScrollView>
           )}
         </View>
-        
-        <View style={{ alignItems: 'center', marginTop: 8 }}>
-          <TouchableOpacity 
-            style={styles.restoreButton} 
-            onPress={async () => {
-              try {
-                setLoading(true);
-                const restored = await refreshAbonnement();
-                if (restored) {
-                  Alert.alert('Succès', 'Vos achats ont été restaurés avec succès.');
-                } else {
-                  Alert.alert('Information', 'Aucun achat à restaurer n\'a été trouvé.');
+
+        {!isWeb && (
+          <View style={{ alignItems: 'center', marginTop: 8 }}>
+            <TouchableOpacity
+              style={styles.restoreButton}
+              onPress={async () => {
+                try {
+                  setLoading(true);
+                  const restored = await refreshAbonnement();
+                  if (restored) {
+                    Alert.alert('Succès', 'Vos achats ont été restaurés avec succès.');
+                  } else {
+                    Alert.alert('Information', 'Aucun achat à restaurer n\'a été trouvé.');
+                  }
+                } catch (error) {
+                  Alert.alert('Erreur', 'Impossible de restaurer vos achats.');
+                } finally {
+                  setLoading(false);
                 }
-              } catch (error) {
-                Alert.alert('Erreur', 'Impossible de restaurer vos achats.');
-              } finally {
-                setLoading(false);
-              }
-            }}
-          > 
-            <Text style={styles.restoreText}>Restaurer mes achats</Text>
-            <ArrowRight size={18} color={colors.primary} />
-          </TouchableOpacity>
-        </View>
-        
+              }}
+            >
+              <Text style={styles.restoreText}>Restaurer mes achats</Text>
+              <ArrowRight size={18} color={colors.primary} />
+            </TouchableOpacity>
+          </View>
+        )}
+
         <View style={{ height: 48 }} />
       </ScrollView>
     </SafeAreaView>
@@ -253,6 +331,19 @@ const createStyles = (colors: any) => StyleSheet.create({
     marginTop: 32,
     textAlign: 'center',
     letterSpacing: 0.2,
+  },
+  platformBadge: {
+    backgroundColor: colors.primary,
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderRadius: 20,
+    alignSelf: 'center',
+    marginBottom: 20,
+  },
+  platformBadgeText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '600',
   },
   section: {
     marginBottom: 36,

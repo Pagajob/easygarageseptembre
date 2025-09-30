@@ -1,4 +1,4 @@
-import Stripe from 'npm:stripe@17.7.0';
+import Stripe from 'stripe';
 import { stripeProducts } from '@/src/stripe-config';
 
 const corsHeaders = {
@@ -16,7 +16,7 @@ export async function POST(request: Request) {
   }
 
   try {
-    const stripeSecretKey = Deno.env.get('STRIPE_SECRET_KEY');
+    const stripeSecretKey = process.env.STRIPE_SECRET_KEY;
     if (!stripeSecretKey) {
       return new Response(
         JSON.stringify({ error: 'Stripe secret key not configured' }),
@@ -28,7 +28,7 @@ export async function POST(request: Request) {
     }
 
     const stripe = new Stripe(stripeSecretKey, {
-      apiVersion: '2024-12-18.acacia',
+      apiVersion: '2024-06-20',
     });
 
     const { priceId, userId, successUrl, cancelUrl } = await request.json();
