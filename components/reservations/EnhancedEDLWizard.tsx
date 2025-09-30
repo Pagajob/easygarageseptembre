@@ -394,16 +394,22 @@ export default function EnhancedEDLWizard({
     setShowSignatureModal(false);
     Alert.alert(
       'Finaliser l\'état des lieux',
-      'Êtes-vous sûr de vouloir finaliser l\'état des lieux ? Cette action ne peut pas être annulée.',
+      'Les signatures du loueur et du client ont été collectées.\n\nÊtes-vous sûr de vouloir finaliser l\'état des lieux ? Le contrat sera automatiquement généré et envoyé par email.\n\nCette action ne peut pas être annulée.',
       [
         { text: 'Annuler', style: 'cancel' },
-        { text: 'Finaliser', onPress: () => onComplete({
-          ...edlData,
-          renterSignature,
-          clientSignature,
-          accessoires,
-          degats: ''
-        }) }
+        {
+          text: 'Finaliser et générer le contrat',
+          style: 'default',
+          onPress: () => {
+            onComplete({
+              ...edlData,
+              renterSignature,
+              clientSignature,
+              accessoires,
+              degats: ''
+            });
+          }
+        }
       ]
     );
   };
@@ -883,32 +889,113 @@ export default function EnhancedEDLWizard({
         visible={showSignatureModal}
         animationType="slide"
         transparent
-        onRequestClose={() => setShowSignatureModal(false)}
+        onRequestClose={() => {
+          setShowSignatureModal(false);
+          setSigningStep('renter');
+          setRenterSignature(null);
+          setClientSignature(null);
+        }}
       >
         <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'center', alignItems: 'center' }}>
-          <View style={{ backgroundColor: '#fff', borderRadius: 16, padding: 24, width: '90%', maxWidth: 400 }}>
-            <Text style={{ fontSize: 18, fontWeight: 'bold', marginBottom: 16, textAlign: 'center' }}>
-              {signingStep === 'renter' ? 'Signature du loueur' : 'Signature du client'}
+          <View style={{ backgroundColor: '#fff', borderRadius: 16, padding: 24, width: '90%', maxWidth: 400, maxHeight: '90%' }}>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+              <View style={{ flex: 1 }}>
+                <Text style={{ fontSize: 18, fontWeight: 'bold', textAlign: 'center', color: colors.text }}>
+                  {signingStep === 'renter' ? 'Étape 1/2 : Signature du loueur' : 'Étape 2/2 : Signature du client'}
+                </Text>
+              </View>
+            </View>
+
+            {renterSignature && signingStep === 'client' && (
+              <View style={{ backgroundColor: colors.success + '20', padding: 12, borderRadius: 8, marginBottom: 12, flexDirection: 'row', alignItems: 'center' }}>
+                <CheckCircle size={20} color={colors.success} />
+                <Text style={{ marginLeft: 8, color: colors.success, fontWeight: '600', fontSize: 14 }}>
+                  Signature du loueur enregistrée
+                </Text>
+              </View>
+            )}
+
+            <Text style={{ fontSize: 14, color: colors.textSecondary, marginBottom: 16, textAlign: 'center' }}>
+              {signingStep === 'renter'
+                ? 'En tant que loueur, signez dans la zone ci-dessous pour valider l\'état des lieux.'
+                : 'Faites maintenant signer le client dans la zone ci-dessous.'}
             </Text>
-            <SignaturePad
-              onOK={dataUrl => {
-                if (signingStep === 'renter') {
-                  setRenterSignature(dataUrl);
-                  setSigningStep('client');
-                } else {
-                  setClientSignature(dataUrl);
-                  setShowSignatureModal(false);
-                  handleFinalValidation();
-                }
-              }}
-              descriptionText={signingStep === 'renter' ? 'Veuillez signer en tant que loueur' : 'Veuillez signer en tant que client'}
-              clearText="Effacer"
-              confirmText="Valider la signature"
-              webStyle=".m-signature-pad--footer {display: none;}"
-            />
-            <TouchableOpacity onPress={() => setShowSignatureModal(false)} style={{ marginTop: 18, alignSelf: 'center' }}>
-              <Text style={{ color: '#888', fontSize: 16 }}>Annuler</Text>
-            </TouchableOpacity>
+
+            <View style={{ flex: 1, minHeight: 200 }}>
+              <SignaturePad
+                key={signingStep}
+                onOK={dataUrl => {
+                  if (signingStep === 'renter') {
+                    setRenterSignature(dataUrl);
+                    Alert.alert(
+                      'Signature du loueur enregistrée',
+                      'Veuillez maintenant faire signer le client.',
+                      [{
+                        text: 'Continuer',
+                        onPress: () => setSigningStep('client')
+                      }]
+                    );
+                  } else {
+                    setClientSignature(dataUrl);
+                    setShowSignatureModal(false);
+                    handleFinalValidation();
+                  }
+                }}
+                descriptionText=""
+                clearText="Effacer"
+                confirmText={signingStep === 'renter' ? 'Valider (Étape 1/2)' : 'Valider et finaliser (Étape 2/2)'}
+                webStyle=".m-signature-pad--footer {display: none;}"
+              />
+            </View>
+
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 18, gap: 12 }}>
+              {signingStep === 'client' && renterSignature && (
+                <TouchableOpacity
+                  onPress={() => {
+                    Alert.alert(
+                      'Retour à la signature du loueur',
+                      'Voulez-vous recommencer la signature du loueur ?',
+                      [
+                        { text: 'Non', style: 'cancel' },
+                        {
+                          text: 'Oui',
+                          onPress: () => {
+                            setSigningStep('renter');
+                            setRenterSignature(null);
+                          }
+                        }
+                      ]
+                    );
+                  }}
+                  style={{ flex: 1, padding: 14, borderRadius: 8, backgroundColor: colors.border, alignItems: 'center' }}
+                >
+                  <Text style={{ color: colors.text, fontSize: 15, fontWeight: '600' }}>← Retour</Text>
+                </TouchableOpacity>
+              )}
+              <TouchableOpacity
+                onPress={() => {
+                  Alert.alert(
+                    'Annuler les signatures',
+                    'Êtes-vous sûr de vouloir annuler ? Les signatures seront perdues.',
+                    [
+                      { text: 'Non', style: 'cancel' },
+                      {
+                        text: 'Oui',
+                        onPress: () => {
+                          setShowSignatureModal(false);
+                          setSigningStep('renter');
+                          setRenterSignature(null);
+                          setClientSignature(null);
+                        }
+                      }
+                    ]
+                  );
+                }}
+                style={{ flex: 1, padding: 14, borderRadius: 8, backgroundColor: colors.error + '20', alignItems: 'center' }}
+              >
+                <Text style={{ color: colors.error, fontSize: 15, fontWeight: '600' }}>Annuler</Text>
+              </TouchableOpacity>
+            </View>
           </View>
         </View>
       </Modal>
