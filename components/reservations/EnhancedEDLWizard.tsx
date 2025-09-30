@@ -921,7 +921,7 @@ export default function EnhancedEDLWizard({
                 : 'Faites maintenant signer le client dans la zone ci-dessous.'}
             </Text>
 
-            <View style={{ flex: 1, minHeight: 200 }}>
+            <View style={{ flex: 1, minHeight: 300 }}>
               <SignaturePad
                 key={signingStep}
                 onOK={dataUrl => {
@@ -941,10 +941,12 @@ export default function EnhancedEDLWizard({
                     handleFinalValidation();
                   }
                 }}
+                onEmpty={() => {
+                  Alert.alert('Signature vide', 'Veuillez signer avant de valider.');
+                }}
                 descriptionText=""
                 clearText="Effacer"
                 confirmText={signingStep === 'renter' ? 'Valider (Étape 1/2)' : 'Valider et finaliser (Étape 2/2)'}
-                webStyle=".m-signature-pad--footer {display: none;}"
               />
             </View>
 
