@@ -125,27 +125,44 @@ export class ContractService {
         carburant_max: '',
       };
 
-      // Create contract HTML content
-      const contractHTML = this.generateContractHTML(contractData);
+      // Generate contract HTML using Supabase Edge Function
+      const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL;
+      const supabaseKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY;
 
-      // Generate PDF
-      let pdfPath = '';
-      
+      if (!supabaseUrl || !supabaseKey) {
+        throw new Error('Supabase configuration missing');
+      }
+
+      const response = await fetch(`${supabaseUrl}/functions/v1/generate-contract`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${supabaseKey}`,
+        },
+        body: JSON.stringify({ contractData }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`Failed to generate contract HTML: ${response.statusText}`);
+      }
+
+      const { html } = await response.json();
+
+      // Generate PDF based on platform
       if (Platform.OS === 'web') {
-        // For web, use a different approach with html2canvas and jsPDF
-        const pdfBlob = await this.generatePDFFromHTMLWeb(contractHTML);
+        const pdfBlob = await this.generatePDFFromHTMLWeb(html);
         return await this.uploadPDFToFirebase(pdfBlob, reservation.id);
       } else {
         // For mobile platforms
         const options = {
-          html: contractHTML,
+          html: html,
           fileName: `contrat_${reservation.id}`,
           directory: 'Documents',
           base64: false
         };
 
         const pdf = await RNHTMLtoPDF.convert(options);
-        pdfPath = pdf.filePath;
+        const pdfPath = pdf.filePath;
 
         // Upload PDF to Firebase Storage
         const pdfBlob = await this.fileToBlob(pdfPath);
@@ -238,13 +255,14 @@ startxref
         return true;
       }
 
-      // Use absolute URL for API calls (Web only)
-      const apiUrl =
-        (typeof window !== 'undefined' && window.location && window.location.origin)
-          ? `${window.location.origin}/api/send-email`
-          : process.env.EXPO_PUBLIC_API_URL
-            ? `${process.env.EXPO_PUBLIC_API_URL}/api/send-email`
-            : 'https://easygarage-app.vercel.app/api/send-email';
+      // Use Supabase URL for API calls (Web only)
+      const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL;
+      if (!supabaseUrl) {
+        console.error('EXPO_PUBLIC_SUPABASE_URL not configured');
+        return false;
+      }
+
+      const apiUrl = `${supabaseUrl}/functions/v1/send-email`;
 
       const response = await fetch(apiUrl, {
         method: 'POST',

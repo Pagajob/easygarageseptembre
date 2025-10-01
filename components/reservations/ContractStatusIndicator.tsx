@@ -1,11 +1,12 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Alert, Platform } from 'react-native';
 import { FileText, Download, Send, CircleAlert as AlertCircle, CircleCheck as CheckCircle } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
-import { useContractAutomation } from '@/hooks/useContractAutomation';
 import { Reservation, Client, Vehicle } from '@/contexts/DataContext';
 import { useData } from '@/contexts/DataContext';
 import { useAuth } from '@/contexts/AuthContext';
+import { ContractService } from '@/services/contractService';
+import { useCompanySettings } from '@/hooks/useCompanySettings';
 
 interface ContractStatusIndicatorProps {
   reservation: Reservation;
@@ -13,20 +14,30 @@ interface ContractStatusIndicatorProps {
   compact?: boolean;
 }
 
-export default function ContractStatusIndicator({ 
-  reservation, 
+export default function ContractStatusIndicator({
+  reservation,
   onViewContract,
-  compact = false 
+  compact = false
 }: ContractStatusIndicatorProps) {
   const { colors } = useTheme();
-  const { clients, vehicles } = useData();
+  const { clients, vehicles, updateReservation } = useData();
   const { user } = useAuth();
-  const { manuallyGenerateContract, isProcessing, getError } = useContractAutomation();
+  const { companyInfo } = useCompanySettings();
+  const [processing, setProcessing] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  // Default extra fees - should be fetched from settings
+  const extraFees = {
+    predefined: [
+      { id: '1', label: 'Carburant manquant', price: 3, enabled: true },
+      { id: '2', label: 'Retard', price: 25, enabled: true },
+      { id: '3', label: 'Jante frottée', price: 150, enabled: true },
+      { id: '4', label: 'Nettoyage', price: 80, enabled: true },
+    ]
+  };
 
   const hasContract = !!reservation.contratGenere;
-  const processing = isProcessing(reservation.id);
-  const error = getError(reservation.id);
-  
+
   // Get client and vehicle data for better error messages
   const client = clients.find(c => c.id === reservation.clientId);
   const vehicle = vehicles.find(v => v.id === reservation.vehiculeId);
@@ -36,8 +47,6 @@ export default function ContractStatusIndicator({
     if (!client?.email) {
       if (Platform.OS === 'web') {
         window.alert('Email manquant: Le client n\'a pas d\'adresse email. Veuillez ajouter une adresse email au client pour pouvoir envoyer le contrat.');
-        
-        // TODO: Rafraîchir l'URL du contrat ici si besoin (fonction à implémenter)
       } else {
         Alert.alert(
           'Email manquant',
@@ -47,8 +56,52 @@ export default function ContractStatusIndicator({
       }
       return;
     }
-    
-    await manuallyGenerateContract(reservation.id);
+
+    if (!vehicle) {
+      Alert.alert('Erreur', 'Véhicule introuvable');
+      return;
+    }
+
+    setProcessing(true);
+    setError(null);
+
+    try {
+      // Generate contract using ContractService
+      const contractUrl = await ContractService.generateContract(
+        reservation,
+        client,
+        vehicle,
+        companyInfo,
+        extraFees
+      );
+
+      // Update reservation with contract URL
+      await updateReservation(reservation.id, {
+        contratGenere: contractUrl,
+      });
+
+      // Send contract by email
+      if (user?.uid) {
+        await ContractService.sendContractByEmail(
+          contractUrl,
+          client.email!,
+          user.uid,
+          companyInfo.nom || 'Tajirent',
+          {
+            nom_client: `${client.prenom} ${client.nom}`,
+            vehicule_modele: `${vehicle.marque} ${vehicle.modele}`,
+          } as any
+        );
+      }
+
+      Alert.alert('Succès', 'Le contrat a été généré et envoyé par email');
+    } catch (err) {
+      console.error('Error generating contract:', err);
+      setError(err instanceof Error ? err.message : 'Erreur inconnue');
+      Alert.alert('Erreur', 'Impossible de générer le contrat');
+    } finally {
+      setProcessing(false);
+    }
   };
 
   const styles = createStyles(colors);
