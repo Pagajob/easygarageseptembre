@@ -189,12 +189,26 @@ export class FirebaseService {
   // Upload file to Firebase Storage
   static async uploadFile(file: Blob | File, path: string): Promise<string> {
     try {
+      console.log('Starting file upload to path:', path);
+      console.log('File type:', file.type, 'Size:', file.size);
+
       const storageRef = ref(storage, path);
+      console.log('Storage reference created:', storageRef.fullPath);
+
       const snapshot = await uploadBytes(storageRef, file);
+      console.log('Upload successful, bytes transferred:', snapshot.metadata.size);
+
       const downloadURL = await getDownloadURL(snapshot.ref);
+      console.log('Download URL obtained:', downloadURL);
+
       return downloadURL;
     } catch (error) {
       console.error('Error uploading file:', error);
+      console.error('Error details:', {
+        message: error instanceof Error ? error.message : 'Unknown error',
+        code: (error as any).code,
+        serverResponse: (error as any).serverResponse
+      });
       throw new Error(`Erreur lors de l'upload: ${error instanceof Error ? error.message : 'Erreur inconnue'}`);
     }
   }

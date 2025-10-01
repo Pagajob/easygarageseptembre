@@ -33,22 +33,28 @@ export default function CompanyInfoForm() {
   };
 
   const pickLogo = async () => {
-    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    
-    if (status !== 'granted') {
-      Alert.alert('Permission requise', 'Nous avons besoin de la permission pour accéder à vos photos.');
-      return;
-    }
+    try {
+      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
 
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      allowsEditing: true,
-      aspect: [1, 1],
-      quality: 0.8,
-    });
+      if (status !== 'granted') {
+        Alert.alert('Permission requise', 'Nous avons besoin de la permission pour accéder à vos photos.');
+        return;
+      }
 
-    if (!result.canceled && result.assets[0]) {
-      handleChange('logo', result.assets[0].uri);
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.8,
+      });
+
+      if (!result.canceled && result.assets[0]) {
+        console.log('Image selected:', result.assets[0].uri);
+        handleChange('logo', result.assets[0].uri);
+      }
+    } catch (error) {
+      console.error('Error picking logo:', error);
+      Alert.alert('Erreur', 'Impossible de sélectionner l\'image.');
     }
   };
 
@@ -75,14 +81,24 @@ export default function CompanyInfoForm() {
 
           console.log('Blob created, size:', blob.size, 'type:', blob.type);
 
+          // If blob has no type or wrong type, create a new blob with correct type
+          let finalBlob = blob;
+          if (!blob.type || !blob.type.startsWith('image/')) {
+            console.log('Blob has invalid type, creating new blob with image/jpeg type');
+            finalBlob = new Blob([blob], { type: 'image/jpeg' });
+          }
+
+          console.log('Final blob type:', finalBlob.type, 'size:', finalBlob.size);
+
           // Upload the blob to Firebase Storage
           // @ts-ignore - uploadLogo expects Blob but TypeScript thinks it's File
-          const downloadUrl = await uploadLogo(blob);
+          const downloadUrl = await uploadLogo(finalBlob);
 
           console.log('Logo uploaded successfully, URL:', downloadUrl);
           logoUrl = downloadUrl;
         } catch (uploadError) {
           console.error('Error uploading logo:', uploadError);
+          console.error('Error stack:', uploadError instanceof Error ? uploadError.stack : 'No stack trace');
           Alert.alert('Erreur', `Impossible de télécharger le logo: ${uploadError instanceof Error ? uploadError.message : 'Erreur inconnue'}`);
           setIsUploading(false);
           return;
