@@ -1,8 +1,8 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Alert, Platform } from 'react-native';
 import { FileText, Download, Send, CircleAlert as AlertCircle, CircleCheck as CheckCircle } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
-import { useContractAutomation } from '@/hooks/useContractAutomation';
+import { useContracts } from '@/hooks/useContracts';
 import { Reservation, Client, Vehicle } from '@/contexts/DataContext';
 import { useData } from '@/contexts/DataContext';
 import { useAuth } from '@/contexts/AuthContext';
@@ -21,11 +21,11 @@ export default function ContractStatusIndicator({
   const { colors } = useTheme();
   const { clients, vehicles } = useData();
   const { user } = useAuth();
-  const { manuallyGenerateContract, isProcessing, getError } = useContractAutomation();
+  const { generateAndSendContract, loading } = useContracts();
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const hasContract = !!reservation.contratGenere;
-  const processing = isProcessing(reservation.id);
-  const error = getError(reservation.id);
   
   // Get client and vehicle data for better error messages
   const client = clients.find(c => c.id === reservation.clientId);
@@ -36,8 +36,6 @@ export default function ContractStatusIndicator({
     if (!client?.email) {
       if (Platform.OS === 'web') {
         window.alert('Email manquant: Le client n\'a pas d\'adresse email. Veuillez ajouter une adresse email au client pour pouvoir envoyer le contrat.');
-        
-        // TODO: Rafraîchir l'URL du contrat ici si besoin (fonction à implémenter)
       } else {
         Alert.alert(
           'Email manquant',
@@ -48,7 +46,20 @@ export default function ContractStatusIndicator({
       return;
     }
     
-    await manuallyGenerateContract(reservation.id);
+    setIsGenerating(true);
+    setError(null);
+    
+    try {
+      const success = await generateAndSendContract(reservation.id);
+      if (!success) {
+        setError('Impossible de générer le contrat');
+      }
+    } catch (error) {
+      console.error('Error generating contract:', error);
+      setError(error instanceof Error ? error.message : 'Erreur inconnue');
+    } finally {
+      setIsGenerating(false);
+    }
   };
 
   const styles = createStyles(colors);
@@ -56,7 +67,7 @@ export default function ContractStatusIndicator({
   if (compact) {
     return (
       <View style={styles.compactContainer}>
-        {processing ? (
+        {isGenerating ? (
           <View style={styles.compactStatus}>
             <ActivityIndicator size="small" color={colors.warning} />
             <Text style={styles.compactText}>Génération...</Text>
@@ -97,7 +108,7 @@ export default function ContractStatusIndicator({
         <Text style={styles.title}>Contrat de location</Text>
       </View>
 
-      {processing ? (
+      {isGenerating ? (
         <View style={styles.statusContainer}>
           <ActivityIndicator size="small" color={colors.warning} />
           <Text style={styles.statusText}>Génération du contrat en cours...</Text>

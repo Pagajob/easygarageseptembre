@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, Image, Lin
 import { ArrowLeft, Car, User, Calendar, Clock, FileText, Phone, Mail, DollarSign, CreditCard as Edit, Trash2, Download, Pencil } from 'lucide-react-native';
 import { useData } from '@/contexts/DataContext';
 import { useTheme } from '@/contexts/ThemeContext';
+import { useSettings } from '@/contexts/SettingsContext';
 import { useContracts } from '@/hooks/useContracts';
 import { useVehicles } from '@/hooks/useVehicles';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -14,12 +15,15 @@ import EDLRetourModal from '@/components/reservations/EDLRetourModal';
 import EnhancedEDLRetourModal from '@/components/reservations/EnhancedEDLRetourModal';
 import EDLHistoryView from '@/components/reservations/EDLHistoryView';
 import EditReservationModal from '@/components/reservations/EditReservationModal';
+import ContractModal from '@/components/ContractModal';
+import { useContractModal } from '@/hooks/useContractModal';
 
 export default function ReservationDetailsScreen() {
   const { colors } = useTheme();
   const { id } = useLocalSearchParams();
   const { reservations, vehicles, clients, deleteReservation, updateReservation, loading, error } = useData();
   const { user } = useAuth();
+  const { companyInfo, extraFees } = useSettings();
   const { getVehicleById } = useVehicles();
   const { generateAndSendContract, getContractByReservationId, loading: contractLoading } = useContracts();
   
@@ -27,6 +31,12 @@ export default function ReservationDetailsScreen() {
   const [contractUrl, setContractUrl] = useState<string | null>(null);
   const [edlRetourModalVisible, setEdlRetourModalVisible] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
+  const { 
+    isModalVisible, 
+    contractData, 
+    showContractModal, 
+    hideContractModal 
+  } = useContractModal();
 
   const reservation = reservations.find(r => r.id === id);
   const vehicle = reservation ? vehicles.find(v => v.id === reservation.vehiculeId) : null;
@@ -220,17 +230,9 @@ export default function ReservationDetailsScreen() {
     }
   };
 
-  const handleViewContract = async () => {
-    if (contractUrl) {
-      try {
-        // Open contract URL in new tab or using Linking
-        Platform.OS === 'web' 
-          ? window.open(contractUrl, '_blank')
-          : await Linking.openURL(contractUrl);
-      } catch (error) {
-        console.error('Error opening contract URL:', error);
-        Alert.alert('Erreur', 'Impossible d\'ouvrir le contrat.');
-      }
+  const handleViewContract = () => {
+    if (contractUrl && reservation && client && vehicle) {
+      showContractModal(reservation, client, vehicle, companyInfo, extraFees);
     } else {
       Alert.alert('Contrat non disponible', 'Aucun contrat n\'a été généré pour cette réservation.');
     }
@@ -651,6 +653,19 @@ export default function ReservationDetailsScreen() {
         onClose={() => setEdlRetourModalVisible(false)}
         onSave={handleEDLRetourSave}
       />
+
+      {/* Modal de contrat */}
+      {contractData.reservation && contractData.client && contractData.vehicle && (
+        <ContractModal
+          visible={isModalVisible}
+          reservation={contractData.reservation}
+          client={contractData.client}
+          vehicle={contractData.vehicle}
+          companyInfo={contractData.companyInfo!}
+          extraFees={contractData.extraFees}
+          onClose={hideContractModal}
+        />
+      )}
     </SafeAreaView>
   );
 }

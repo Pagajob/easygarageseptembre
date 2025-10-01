@@ -3,10 +3,13 @@ import { View, Text, StyleSheet, TouchableOpacity, Linking, Alert, Platform } fr
 import { Car, User, Clock, FileText, Download, Pencil } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useAuth } from '@/contexts/AuthContext';
-import { Reservation } from '@/contexts/DataContext';
+import { Reservation, Client, Vehicle } from '@/contexts/DataContext';
+import { useSettings } from '@/contexts/SettingsContext';
 import ContractStatusIndicator from './ContractStatusIndicator';
 import { useData } from '@/contexts/DataContext';
 import EditReservationModal from '@/components/reservations/EditReservationModal';
+import ContractModal from '@/components/ContractModal';
+import { useContractModal } from '@/hooks/useContractModal';
 
 interface ReservationCardProps {
   reservation: Reservation;
@@ -29,8 +32,15 @@ export default function ReservationCard({
 }: ReservationCardProps) {
   const { colors } = useTheme();
   const { user } = useAuth();
-  const { clients } = useData();
+  const { clients, vehicles } = useData();
+  const { companyInfo, extraFees } = useSettings();
   const [showEditModal, setShowEditModal] = useState(false);
+  const { 
+    isModalVisible, 
+    contractData, 
+    showContractModal, 
+    hideContractModal 
+  } = useContractModal();
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -87,44 +97,32 @@ export default function ReservationCard({
     }
   };
 
-  const handleViewContract = async () => {
+  const handleViewContract = () => {
     if (reservation.contratGenere) {
-      // Get the client object
+      // Find client and vehicle data for the modal
       const client = clients.find(c => c.id === reservation.clientId);
+      const vehicle = vehicles.find(v => v.id === reservation.vehicleId);
       
-      try {
-        // Send email to client
-        if (client?.email) {
-          try {
-            await sendContractByEmail(reservation.contratGenere, reservation.id);
-          } catch (error) {
-            console.error('Error sending contract email:', error);
-          }
-        }
-        
-        // For web, open in new tab
-        if ((Platform.OS as string) === 'web') {
-          window.open(reservation.contratGenere, '_blank');
-        } else {
-          // For mobile, use Linking
-          const supported = await Linking.canOpenURL(reservation.contratGenere);
-          if (supported) {
-            await Linking.openURL(reservation.contratGenere);
-          } else {
-            if ((Platform.OS as string) === 'web') {
-              window.alert('Impossible d\'ouvrir le contrat. URL non supportée.');
-            } else {
-              Alert.alert('Erreur', 'Impossible d\'ouvrir le contrat. URL non supportée.');
-            }
-          }
-        }
-      } catch (error) {
-        console.error('Erreur lors de l\'ouverture du contrat:', error);
-        if ((Platform.OS as string) === 'web') {
-          window.alert('Impossible d\'ouvrir le contrat. Veuillez réessayer.');
-        } else {
-          Alert.alert('Erreur', 'Impossible d\'ouvrir le contrat. Veuillez réessayer.');
-        }
+      console.log('Debug handleViewContract:', {
+        reservationId: reservation.id,
+        clientId: reservation.clientId,
+        vehicleId: reservation.vehicleId,
+        clientFound: !!client,
+        vehicleFound: !!vehicle,
+        clientsCount: clients.length,
+        vehiclesCount: vehicles.length
+      });
+      
+      if (client && vehicle) {
+        showContractModal(reservation, client, vehicle, companyInfo, extraFees);
+      } else {
+        const missingData = [];
+        if (!client) missingData.push('client');
+        if (!vehicle) missingData.push('véhicule');
+        Alert.alert(
+          'Erreur', 
+          `Impossible de trouver les informations du ${missingData.join(' et du ')}. Veuillez réessayer.`
+        );
       }
     }
   };
@@ -241,6 +239,19 @@ export default function ReservationCard({
         onClose={() => setShowEditModal(false)}
         onSuccess={() => setShowEditModal(false)}
       />
+
+      {/* Modal de contrat */}
+      {contractData.reservation && contractData.client && contractData.vehicle && (
+        <ContractModal
+          visible={isModalVisible}
+          reservation={contractData.reservation}
+          client={contractData.client}
+          vehicle={contractData.vehicle}
+          companyInfo={contractData.companyInfo!}
+          extraFees={contractData.extraFees}
+          onClose={hideContractModal}
+        />
+      )}
     </TouchableOpacity>
   );
 }

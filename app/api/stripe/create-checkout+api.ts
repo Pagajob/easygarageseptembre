@@ -1,4 +1,4 @@
-import Stripe from 'npm:stripe@17.7.0';
+import Stripe from 'npm:stripe';
 import { stripeProducts } from '@/src/stripe-config';
 
 const corsHeaders = {

@@ -1,66 +1,56 @@
+import React, { useState, useEffect } from 'react';
+import {
+  Modal,
+  View,
+  Text,
+  TouchableOpacity,
+  ScrollView,
+  ActivityIndicator,
+  Alert,
+  StyleSheet,
+  Platform,
+} from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { WebView } from 'react-native-webview';
+import { X, Mail, Download, FileText } from 'lucide-react-native';
+import { useTheme } from '@/contexts/ThemeContext';
+import { ContractService, ContractData } from '@/services/contractService';
 import { Reservation, Client, Vehicle } from '@/contexts/DataContext';
 import { CompanyInfo } from '@/contexts/SettingsContext';
-import { storage } from '@/config/firebase';
-import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
-import { Platform } from 'react-native';
-import * as FileSystem from 'expo-file-system';
-import { WebContractService } from './webContractService';
 
-// Import platform-specific PDF generation
-let RNHTMLtoPDF: any;
-if (Platform.OS !== 'web') {
-  RNHTMLtoPDF = require('react-native-html-to-pdf').default;
+interface ContractModalProps {
+  visible: boolean;
+  reservation: Reservation;
+  client: Client;
+  vehicle: Vehicle;
+  companyInfo: CompanyInfo;
+  extraFees: any;
+  onClose: () => void;
 }
 
-export interface ContractData {
-  nom_client: string;
-  adresse_client: string;
-  email_client: string;
-  telephone_client: string;
-  vehicule_marque: string;
-  vehicule_modele: string;
-  vehicule_immatriculation: string;
-  vehicule_carburant: string;
-  date_debut: string;
-  heure_debut: string;
-  date_fin: string;
-  heure_fin: string;
-  kilometrage_depart: string;
-  kilometrage_depart_edl: string;
-  kilometrage_inclus: string;
-  prixKmSupplementaire: string;
-  cautiondepart: string;
-  cautionRSV: string;
-  nom_entreprise: string;
-  adresse_entreprise: string;
-  siret_entreprise: string;
-  ageminimal: string;
-  anneepermis: string;
-  retard: string;
-  carburant_manquant: string;
-  jante_frottee: string;
-  nettoyage: string;
-  montant_location: string;
-  reservation_id: string;
-  date_generation: string;
-  signature_client: string;
-  logo_entreprise: string;
-  type_contrat: string;
-  carburant_depart: string;
-  carburant_max: string;
-}
+export default function ContractModal({
+  visible,
+  reservation,
+  client,
+  vehicle,
+  companyInfo,
+  extraFees,
+  onClose
+}: ContractModalProps) {
+  const { colors } = useTheme();
+  const [contractHTML, setContractHTML] = useState<string>('');
+  const [isLoading, setIsLoading] = useState(false);
+  const [isSendingEmail, setIsSendingEmail] = useState(false);
+  const [contractUrl, setContractUrl] = useState<string>('');
 
-export class ContractService {
-  /**
-   * Generate a contract PDF for a reservation
-   */
-  static async generateContract(
-    reservation: Reservation,
-    client: Client,
-    vehicle: Vehicle,
-    companyInfo: CompanyInfo,
-    extraFees: any
-  ): Promise<string> {
+  useEffect(() => {
+    if (visible) {
+      generateContractHTML();
+    }
+  }, [visible, reservation, client, vehicle, companyInfo, extraFees]);
+
+  const generateContractHTML = async () => {
+    setIsLoading(true);
     try {
       // Get enabled predefined fees
       const enabledPredefinedFees = extraFees.predefined?.filter((fee: any) => fee.enabled) || [];
@@ -107,7 +97,7 @@ export class ContractService {
         prixKmSupplementaire: vehicle.prixKmSupplementaire?.toString() || '0',
         cautiondepart: vehicle.cautionDepart?.toString() || '0',
         cautionRSV: vehicle.cautionRSV?.toString() || '0',
-        nom_entreprise: companyInfo.nom || 'Tajirent',
+        nom_entreprise: companyInfo.nom || 'EasyGarage',
         adresse_entreprise: companyInfo.adresse || '',
         siret_entreprise: companyInfo.siret || '',
         ageminimal: vehicle.ageMinimal?.toString() || '21',
@@ -126,200 +116,74 @@ export class ContractService {
         carburant_max: '',
       };
 
-      // Create contract HTML content
-      const contractHTML = this.generateContractHTML(contractData);
+      // Generate HTML content
+      const html = generateContractHTMLContent(contractData);
+      setContractHTML(html);
+    } catch (error) {
+      console.error('Error generating contract HTML:', error);
+      Alert.alert('Erreur', 'Impossible de générer le contrat');
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
-      // Generate PDF
-      let pdfPath = '';
+  const handleSendEmail = async () => {
+    if (!client.email) {
+      Alert.alert(
+        'Email manquant',
+        'Le client n\'a pas d\'adresse email. Veuillez ajouter une adresse email au client pour pouvoir envoyer le contrat.'
+      );
+      return;
+    }
+
+    setIsSendingEmail(true);
+    try {
+      // Generate and upload contract PDF
+      const pdfUrl = await ContractService.generateContract(
+        reservation,
+        client,
+        vehicle,
+        companyInfo,
+        extraFees
+      );
       
-      if (Platform.OS === 'web') {
-        // For web, use the new WebContractService with improved logic
-        const pdfBlob = await WebContractService.generatePDFFromHTMLWeb(contractHTML);
-        return await this.uploadPDFToFirebase(pdfBlob, reservation.id);
+      setContractUrl(pdfUrl);
+
+      // Send email with contract
+      const success = await ContractService.sendContractByEmail(
+        pdfUrl,
+        client.email,
+        reservation.userId,
+        companyInfo.nom || 'EasyGarage',
+        {
+          nom_client: `${client.prenom} ${client.nom}`,
+          vehicule_modele: `${vehicle.marque} ${vehicle.modele}`,
+        } as ContractData
+      );
+
+      if (success) {
+        Alert.alert(
+          'Succès',
+          'Le contrat a été envoyé par email au client avec succès.'
+        );
       } else {
-        // For mobile platforms
-        const options = {
-          html: contractHTML,
-          fileName: `contrat_${reservation.id}`,
-          directory: 'Documents',
-          base64: false
-        };
-
-        const pdf = await RNHTMLtoPDF.convert(options);
-        pdfPath = pdf.filePath;
-
-        // Upload PDF to Firebase Storage
-        const pdfBlob = await this.fileToBlob(pdfPath);
-        const downloadURL = await this.uploadPDFToFirebase(pdfBlob, reservation.id);
-
-        // Clean up temporary file
-        await FileSystem.deleteAsync(pdfPath, { idempotent: true });
-
-        return downloadURL;
+        Alert.alert(
+          'Erreur',
+          'Impossible d\'envoyer l\'email. Veuillez réessayer.'
+        );
       }
-    } catch (error) {
-      console.error('Error generating contract:', error);
-      throw new Error('Failed to generate contract');
-    }
-  }
-
-  /**
-   * Generate PDF from HTML for web platform
-   */
-  private static async generatePDFFromHTMLWeb(html: string): Promise<Blob> {
-    try {
-      // For web, create a proper PDF content
-      const pdfContent = this.createSimplePDFContent(html);
-      const blob = new Blob([pdfContent], { type: 'application/pdf' });
-      return blob;
-    } catch (error) {
-      console.error('Error generating PDF for web:', error);
-      // Return a fallback PDF
-      const fallbackContent = this.createSimplePDFContent('Contrat de location - Erreur de génération');
-      return new Blob([fallbackContent], { type: 'application/pdf' });
-    }
-  }
-
-  /**
-   * Create a simple PDF content (placeholder for proper PDF generation)
-   */
-  private static createSimplePDFContent(html: string): string {
-    // Simplified PDF content generation
-    const textContent = 'Contrat de location généré automatiquement';
-    return `%PDF-1.4
-1 0 obj<</Type/Catalog/Pages 2 0 R>>endobj
-2 0 obj<</Type/Pages/Kids[3 0 R]/Count 1>>endobj
-3 0 obj<</Type/Page/Parent 2 0 R/MediaBox[0 0 612 792]/Contents 4 0 R>>endobj
-4 0 obj<</Length 44>>stream
-BT/F1 12 Tf 72 720 Td(${textContent})Tj ET
-endstream endobj
-xref
-0 5
-0000000000 65535 f 
-0000000010 00000 n 
-0000000053 00000 n 
-0000000125 00000 n 
-0000000209 00000 n 
-trailer<</Size 5/Root 1 0 R>>
-startxref
-295
-%%EOF`;
-  }
-
-  /**
-   * Upload PDF to Firebase Storage
-   */
-  private static async uploadPDFToFirebase(pdfBlob: Blob, reservationId: string): Promise<string> {
-    const storagePath = `contracts/${reservationId}/contract_${Date.now()}.pdf`;
-    const storageRef = ref(storage, storagePath);
-    
-    await uploadBytes(storageRef, pdfBlob);
-    const downloadURL = await getDownloadURL(storageRef);
-    
-    return downloadURL;
-  }
-
-  /**
-   * Send contract by email to client
-   */
-  static async sendContractByEmail(
-    contractUrl: string,
-    clientEmail: string,
-    companyOwnerUserId: string,
-    companyName: string,
-    contractData: ContractData
-  ): Promise<boolean> {
-    try {
-      // Use absolute URL for API calls
-      const apiUrl =
-        (typeof window !== 'undefined' && window.location && window.location.origin)
-          ? `${window.location.origin}/api/send-email`
-          : process.env.EXPO_PUBLIC_API_URL
-            ? `${process.env.EXPO_PUBLIC_API_URL}/api/send-email`
-            : '/api/send-email';
-      
-      const response = await fetch(apiUrl, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          to: clientEmail,
-          subject: `Votre contrat de location - ${companyName}`,
-          userId: companyOwnerUserId,
-          html: `
-            <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-              <h2 style="color: #2563EB;">Contrat de location</h2>
-              <p>Bonjour,</p>
-              <p>Veuillez trouver ci-joint votre contrat de location pour le véhicule <strong>${contractData.vehicule_modele}</strong>.</p>
-              <p>Vous pouvez télécharger votre contrat en cliquant sur le lien ci-dessous :</p>
-              <p><a href="${contractUrl}" style="background-color: #2563EB; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px;">Télécharger le contrat</a></p>
-              <p>Merci de votre confiance.</p>
-              <hr style="margin: 20px 0; border: none; border-top: 1px solid #eee;">
-              <p style="color: #666; font-size: 12px;">
-                ${companyName}<br>
-                Cet email a été généré automatiquement, merci de ne pas y répondre.
-              </p>
-            </div>
-          `,
-          attachments: [
-            {
-              filename: 'contrat_location.pdf',
-              url: contractUrl,
-              type: 'application/pdf'
-            }
-          ]
-        })
-      });
-
-      const result = await response.json();
-      return result.success || false;
-
     } catch (error) {
       console.error('Error sending contract email:', error);
-      throw new Error('Failed to send contract by email');
+      Alert.alert(
+        'Erreur',
+        'Une erreur est survenue lors de l\'envoi du contrat.'
+      );
+    } finally {
+      setIsSendingEmail(false);
     }
-  }
+  };
 
-  /**
-   * Convert file to Blob
-   */
-  private static async fileToBlob(filePath: string): Promise<Blob> {
-    try {
-      if (Platform.OS === 'web') {
-        const response = await fetch(filePath);
-        return await response.blob();
-      } else {
-        // For mobile platforms, read the file and convert to blob
-        const fileInfo = await FileSystem.getInfoAsync(filePath);
-        if (!fileInfo.exists) {
-          throw new Error('File does not exist');
-        }
-
-        const fileContent = await FileSystem.readAsStringAsync(filePath, {
-          encoding: FileSystem.EncodingType.Base64,
-        });
-
-        // Convert base64 to blob
-        const byteCharacters = atob(fileContent);
-        const byteNumbers = new Array(byteCharacters.length);
-        for (let i = 0; i < byteCharacters.length; i++) {
-          byteNumbers[i] = byteCharacters.charCodeAt(i);
-        }
-        const byteArray = new Uint8Array(byteNumbers);
-        return new Blob([byteArray], { type: 'application/pdf' });
-      }
-    } catch (error) {
-      console.error('Error converting file to blob:', error);
-      throw new Error('Failed to convert file to blob');
-    }
-  }
-
-  /**
-   * Generate HTML content for the contract
-   */
-  private static generateContractHTML(data: ContractData): string {
-    // Use the provided CGL Easygarage.html template
+  const generateContractHTMLContent = (data: ContractData): string => {
     return `
       <!DOCTYPE html>
       <html>
@@ -333,6 +197,7 @@ startxref
             padding: 20px;
             color: #333;
             line-height: 1.4;
+            background-color: white;
           }
           h1 { 
             color: black; 
@@ -600,5 +465,174 @@ startxref
       </body>
       </html>
     `;
-  }
+  };
+
+  const styles = StyleSheet.create({
+    modal: {
+      flex: 1,
+      backgroundColor: colors.background,
+    },
+    header: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      padding: 16,
+      borderBottomWidth: 1,
+      borderBottomColor: colors.border,
+    },
+    headerTitle: {
+      fontSize: 18,
+      fontWeight: 'bold',
+      color: colors.text,
+    },
+    closeButton: {
+      padding: 8,
+    },
+    content: {
+      flex: 1,
+    },
+    loadingContainer: {
+      flex: 1,
+      justifyContent: 'center',
+      alignItems: 'center',
+    },
+    loadingText: {
+      marginTop: 16,
+      fontSize: 16,
+      color: colors.text,
+    },
+    contractContainer: {
+      flex: 1,
+    },
+    webViewContainer: {
+      flex: 1,
+      margin: 16,
+    },
+    actionsContainer: {
+      flexDirection: 'row',
+      justifyContent: 'space-around',
+      padding: 16,
+      borderTopWidth: 1,
+      borderTopColor: colors.border,
+      backgroundColor: colors.surface,
+    },
+    actionButton: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      backgroundColor: colors.primary,
+      paddingHorizontal: 20,
+      paddingVertical: 12,
+      borderRadius: 8,
+      minWidth: 140,
+      justifyContent: 'center',
+    },
+    actionButtonDisabled: {
+      backgroundColor: colors.textSecondary,
+    },
+    actionButtonText: {
+      color: colors.background,
+      fontWeight: 'bold',
+      marginLeft: 8,
+    },
+    secondaryButton: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      backgroundColor: colors.surface,
+      paddingHorizontal: 20,
+      paddingVertical: 12,
+      borderRadius: 8,
+      borderWidth: 1,
+      borderColor: colors.primary,
+      minWidth: 140,
+      justifyContent: 'center',
+    },
+    secondaryButtonText: {
+      color: colors.primary,
+      fontWeight: 'bold',
+      marginLeft: 8,
+    },
+  });
+
+  return (
+    <Modal visible={visible} animationType="slide" presentationStyle="pageSheet">
+      <SafeAreaView style={styles.modal}>
+        <View style={styles.header}>
+          <Text style={styles.headerTitle}>Contrat de location</Text>
+          <TouchableOpacity onPress={onClose} style={styles.closeButton}>
+            <X size={24} color={colors.text} />
+          </TouchableOpacity>
+        </View>
+
+        <View style={styles.content}>
+          {isLoading ? (
+            <View style={styles.loadingContainer}>
+              <ActivityIndicator size="large" color={colors.primary} />
+              <Text style={styles.loadingText}>Génération du contrat...</Text>
+            </View>
+          ) : (
+            <View style={styles.contractContainer}>
+              {contractHTML ? (
+                <WebView
+                  source={{ html: contractHTML }}
+                  style={styles.webViewContainer}
+                  javaScriptEnabled={true}
+                  domStorageEnabled={true}
+                  startInLoadingState={true}
+                  renderLoading={() => (
+                    <View style={styles.loadingContainer}>
+                      <ActivityIndicator size="large" color={colors.primary} />
+                      <Text style={styles.loadingText}>Chargement du contrat...</Text>
+                    </View>
+                  )}
+                />
+              ) : (
+                <View style={styles.loadingContainer}>
+                  <ActivityIndicator size="large" color={colors.primary} />
+                  <Text style={styles.loadingText}>Génération du contrat...</Text>
+                </View>
+              )}
+            </View>
+          )}
+        </View>
+
+        <View style={styles.actionsContainer}>
+          <TouchableOpacity
+            style={[
+              styles.actionButton,
+              (isSendingEmail || !client.email) && styles.actionButtonDisabled
+            ]}
+            onPress={handleSendEmail}
+            disabled={isSendingEmail || !client.email}
+          >
+            {isSendingEmail ? (
+              <ActivityIndicator size="small" color={colors.background} />
+            ) : (
+              <Mail size={20} color={colors.background} />
+            )}
+            <Text style={styles.actionButtonText}>
+              {isSendingEmail ? 'Envoi...' : 'Envoyer au client'}
+            </Text>
+          </TouchableOpacity>
+
+          {contractUrl && (
+            <TouchableOpacity
+              style={styles.secondaryButton}
+              onPress={() => {
+                // Open PDF in browser or download
+                if (Platform.OS === 'web') {
+                  window.open(contractUrl, '_blank');
+                } else {
+                  // For mobile, you might want to use Linking.openURL
+                  Alert.alert('PDF généré', 'Le contrat PDF est disponible pour téléchargement');
+                }
+              }}
+            >
+              <Download size={20} color={colors.primary} />
+              <Text style={styles.secondaryButtonText}>Télécharger PDF</Text>
+            </TouchableOpacity>
+          )}
+        </View>
+      </SafeAreaView>
+    </Modal>
+  );
 }

@@ -1,6 +1,6 @@
-import Stripe from 'npm:stripe@17.7.0';
-import { initializeApp, cert, getApps } from 'npm:firebase-admin@13.4.0/app';
-import { getFirestore } from 'npm:firebase-admin@13.4.0/firestore';
+import Stripe from 'npm:stripe';
+import { initializeApp, cert, getApps } from 'npm:firebase-admin/app';
+import { getFirestore } from 'npm:firebase-admin/firestore';
 import { stripeProducts } from '@/src/stripe-config';
 
 const corsHeaders = {
