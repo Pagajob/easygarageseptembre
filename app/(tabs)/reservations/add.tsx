@@ -1,4 +1,17 @@
+import React, { useState, useEffect } from 'react';
+import { View, Text, ScrollView, StyleSheet, TouchableOpacity, TextInput, Modal, Alert, KeyboardAvoidingView, Platform, SafeAreaView, Image } from 'react-native';
+import { useRouter } from 'expo-router';
+import { useTheme } from '@/contexts/ThemeContext';
+import { useData } from '@/contexts/DataContext';
+import { useAuth } from '@/contexts/AuthContext';
+import { useNotifications } from '@/hooks/useNotifications';
+import CalendarPicker from '@/components/CalendarPicker';
+import DualDatePicker from '@/components/DualDatePicker';
+import { ArrowLeft, ArrowRight, Check, Plus, Calendar, X, Car, User, Upload } from 'lucide-react-native';
+import * as DocumentPicker from 'expo-document-picker';
+
 export default function AddReservationScreen() {
+  const router = useRouter();
   const { colors } = useTheme();
   const { vehicles, clients, reservations, addReservation, addClient } = useData();
   const { user, abonnementUtilisateur, getAbonnementCourant } = useAuth();
