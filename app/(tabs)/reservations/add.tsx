@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { View, Text, ScrollView, StyleSheet, TouchableOpacity, TextInput, Modal, Alert, KeyboardAvoidingView, Platform, SafeAreaView, Image } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useTheme } from '@/contexts/ThemeContext';
-import { useData } from '@/contexts/DataContext';
+import { useData, Client, Reservation } from '@/contexts/DataContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { useNotifications } from '@/hooks/useNotifications';
 import CalendarPicker from '@/components/CalendarPicker';
@@ -216,49 +216,17 @@ export default function AddReservationScreen() {
         telephone: newClientData.telephone,
         email: newClientData.email,
         adresse: newClientData.adresse,
-        permisConduire: '',
-        carteIdentite: '',
+        permisConduire: newClientData.permisConduire || '',
+        carteIdentite: newClientData.carteIdentite || '',
         notes: newClientData.notes,
       };
 
-      // Créer d'abord le client pour obtenir son ID
-      const newClientId = await ClientService.create(clientData);
+      // Créer le client
+      await addClient(clientData);
 
-      // Upload documents to Firebase Storage if they exist
-      if (newClientData.permisConduire || newClientData.carteIdentite) {
-        const updateData: Partial<Client> = {};
-
-        if (newClientData.permisConduire) {
-          try {
-            const permisBlob = await uriToBlob(newClientData.permisConduire);
-            const permisUrl = await ClientService.uploadDocument(newClientId, permisBlob, 'permis');
-            updateData.permisConduire = permisUrl;
-          } catch (error) {
-            console.warn('Failed to upload driving license:', error);
-            // Continue without document
-          }
-        }
-
-        if (newClientData.carteIdentite) {
-          try {
-            const carteBlob = await uriToBlob(newClientData.carteIdentite);
-            const carteUrl = await ClientService.uploadDocument(newClientId, carteBlob, 'carte');
-            updateData.carteIdentite = carteUrl;
-          } catch (error) {
-            console.warn('Failed to upload ID card:', error);
-            // Continue without document
-          }
-        }
-
-        // Mettre à jour le client avec les URLs des documents
-        if (Object.keys(updateData).length > 0) {
-          await ClientService.update(newClientId, updateData);
-        }
-      }
-      
       // Fermer le modal
       setShowNewClientModal(false);
-      
+
       // Reset form
       setNewClientData({
         prenom: '',
@@ -726,7 +694,30 @@ export default function AddReservationScreen() {
     }
   };
 
-  const styles = createStyles(colors);
+  const renderRestrictionModal = () => (
+    <Modal visible={showRestrictionModal} transparent animationType="fade">
+      <View style={styles.modalOverlay}>
+        <View style={styles.modalContent}>
+          <Text style={styles.modalTitle}>Limite atteinte</Text>
+          <Text style={{ marginTop: 12, color: colors.textSecondary }}>
+            Vous avez atteint la limite de réservations pour votre abonnement.
+            Veuillez mettre à niveau votre abonnement pour continuer.
+          </Text>
+          <View style={styles.modalButtons}>
+            <TouchableOpacity
+              style={[styles.button, styles.secondaryButton, { borderColor: colors.border }]}
+              onPress={() => {
+                setShowRestrictionModal(false);
+                router.back();
+              }}
+            >
+              <Text style={[styles.buttonText, { color: colors.text }]}>Fermer</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </View>
+    </Modal>
+  );
 
   // Contrôle de la limite d'abonnement
   const reservationsMax = getAbonnementCourant()?.reservationsMax ?? 5;
@@ -736,5 +727,172 @@ export default function AddReservationScreen() {
     }
   }, [reservations, reservationsMax]);
 
-  // At the end of the component
+  return (
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
+      <View style={styles.header}>
+        <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+          <ArrowLeft size={24} color={colors.text} />
+        </TouchableOpacity>
+        <Text style={[styles.headerTitle, { color: colors.text }]}>Nouvelle Réservation</Text>
+        <View style={{ width: 24 }} />
+      </View>
+
+      <View style={styles.content}>
+        <Text style={[styles.title, { color: colors.text }]}>
+          Étape {currentStep} sur 4
+        </Text>
+        <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
+          {currentStep === 1 && 'Sélectionnez un véhicule'}
+          {currentStep === 2 && 'Choisissez les dates'}
+          {currentStep === 3 && 'Sélectionnez un client'}
+          {currentStep === 4 && 'Confirmez la réservation'}
+        </Text>
+      </View>
+
+      {renderNewClientModal()}
+      {renderRestrictionModal()}
+
+      <View style={styles.buttons}>
+        {currentStep > 1 && (
+          <TouchableOpacity
+            style={[styles.button, styles.secondaryButton, { borderColor: colors.border }]}
+            onPress={() => setCurrentStep(currentStep - 1)}
+          >
+            <ArrowLeft size={20} color={colors.text} />
+            <Text style={[styles.buttonText, { color: colors.text }]}>Précédent</Text>
+          </TouchableOpacity>
+        )}
+
+        {currentStep < 4 ? (
+          <TouchableOpacity
+            style={[styles.button, styles.primaryButton, { backgroundColor: colors.primary }]}
+            onPress={() => setCurrentStep(currentStep + 1)}
+            disabled={!canProceedToNextStep()}
+          >
+            <Text style={[styles.buttonText, { color: colors.background }]}>Suivant</Text>
+            <ArrowRight size={20} color={colors.background} />
+          </TouchableOpacity>
+        ) : (
+          <TouchableOpacity
+            style={[styles.button, styles.primaryButton, { backgroundColor: colors.primary }]}
+            onPress={handleSaveReservation}
+          >
+            <Check size={20} color={colors.background} />
+            <Text style={[styles.buttonText, { color: colors.background }]}>Enregistrer</Text>
+          </TouchableOpacity>
+        )}
+      </View>
+    </SafeAreaView>
+  );
 }
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+  },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E5E7EB',
+  },
+  backButton: {
+    padding: 8,
+  },
+  headerTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+  },
+  content: {
+    flex: 1,
+    padding: 16,
+  },
+  title: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    marginBottom: 8,
+  },
+  subtitle: {
+    fontSize: 16,
+    marginBottom: 24,
+  },
+  buttons: {
+    flexDirection: 'row',
+    gap: 12,
+    padding: 16,
+  },
+  button: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    paddingVertical: 14,
+    paddingHorizontal: 20,
+    borderRadius: 12,
+  },
+  primaryButton: {
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+  },
+  secondaryButton: {
+    borderWidth: 1,
+  },
+  buttonText: {
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  modalContent: {
+    width: '90%',
+    maxHeight: '80%',
+    backgroundColor: '#FFF',
+    borderRadius: 16,
+    padding: 20,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+  },
+  closeButton: {
+    padding: 8,
+  },
+  label: {
+    fontSize: 14,
+    fontWeight: '600',
+    marginBottom: 8,
+  },
+  input: {
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    borderRadius: 8,
+    padding: 12,
+    fontSize: 16,
+    marginBottom: 16,
+  },
+  textArea: {
+    height: 100,
+    textAlignVertical: 'top',
+  },
+  modalButtons: {
+    flexDirection: 'row',
+    gap: 12,
+    marginTop: 20,
+  },
+});
