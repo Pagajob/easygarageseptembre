@@ -47,7 +47,7 @@ export function useContractAutomation() {
           ? `${window.location.origin}/api/contracts/generate`
           : process.env.EXPO_PUBLIC_API_URL
             ? `${process.env.EXPO_PUBLIC_API_URL}/api/contracts/generate`
-            : 'https://easygarage-app.vercel.app/api/contracts/generate';
+            : '/api/contracts/generate';
       
       // Call the API route to generate contract
       const response = await fetch(apiUrl, {

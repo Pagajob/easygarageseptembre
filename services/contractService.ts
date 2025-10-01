@@ -235,7 +235,7 @@ startxref
           ? `${window.location.origin}/api/send-email`
           : process.env.EXPO_PUBLIC_API_URL
             ? `${process.env.EXPO_PUBLIC_API_URL}/api/send-email`
-            : 'https://easygarage-app.vercel.app/api/send-email';
+            : '/api/send-email';
       
       const response = await fetch(apiUrl, {
         method: 'POST',

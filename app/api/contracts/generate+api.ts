@@ -53,11 +53,11 @@ export async function POST(request: Request) {
       );
     }
 
-    // 2. Generate contract URL
+    // 2. Generate contract URL using Firebase Storage
     // In a real implementation, this would generate a PDF using a library like PDFKit
-    // For now, we'll use a mock URL
+    // For now, we'll use a mock URL that points to Firebase Storage
     const timestamp = Date.now();
-    const contractUrl = `https://easygarage-app.vercel.app/contracts/${reservationId}_${timestamp}.pdf`;
+    const contractUrl = `https://firebasestorage.googleapis.com/v0/b/easygarage-contracts/o/contracts%2F${reservationId}_${timestamp}.pdf?alt=media`;
     
     // 3. Send email with contract
     const emailSent = await sendContractEmail(reservationData, contractUrl);
@@ -139,7 +139,7 @@ async function sendContractEmail(data: any, contractUrl: string): Promise<boolea
         ? `${window.location.origin}/api/send-email`
         : process.env.EXPO_PUBLIC_API_URL
           ? `${process.env.EXPO_PUBLIC_API_URL}/api/send-email`
-          : 'https://easygarage-app.vercel.app/api/send-email';
+          : '/api/send-email';
 
     const response = await fetch(apiUrl, {
       method: 'POST',
