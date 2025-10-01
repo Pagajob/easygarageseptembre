@@ -79,13 +79,14 @@ export function useEntreprise() {
     return !!entreprise;
   };
 
-  const uploadLogo = async (file: File): Promise<string> => {
-    if (!user || !entreprise) {
-      throw new Error('Utilisateur non connecté ou entreprise non trouvée');
+  const uploadLogo = async (file: Blob | File): Promise<string> => {
+    if (!user) {
+      throw new Error('Utilisateur non connecté');
     }
 
     try {
-      return await EntrepriseService.uploadLogo(entreprise.id, file);
+      // Use userId for the upload path
+      return await EntrepriseService.uploadLogo(user.uid, file);
     } catch (error) {
       console.error('Error uploading logo:', error);
       throw new Error(error instanceof Error ? error.message : 'Une erreur est survenue lors du téléchargement du logo');

@@ -55,53 +55,63 @@ export default function CompanyInfoForm() {
   const handleSave = async () => {
     try {
       setIsUploading(true);
-      
+
       let companyInfoToSave = { ...localCompanyInfo };
       let logoUrl = localCompanyInfo.logo;
-      
+
       // Check if logo needs to be uploaded (local file URI)
-      if (localCompanyInfo.logo && 
-          (localCompanyInfo.logo.startsWith('file://') || 
+      if (localCompanyInfo.logo &&
+          (localCompanyInfo.logo.startsWith('file://') ||
            localCompanyInfo.logo.startsWith('data:') ||
-           localCompanyInfo.logo.startsWith('blob:'))) {
-        
+           localCompanyInfo.logo.startsWith('blob:') ||
+           localCompanyInfo.logo.startsWith('content://'))) {
+
         try {
+          console.log('Uploading logo from URI:', localCompanyInfo.logo);
+
           // Convert URI to blob for upload
           const response = await fetch(localCompanyInfo.logo);
           const blob = await response.blob();
-          
+
+          console.log('Blob created, size:', blob.size, 'type:', blob.type);
+
           // Upload the blob to Firebase Storage
-          // @ts-ignore
+          // @ts-ignore - uploadLogo expects Blob but TypeScript thinks it's File
           const downloadUrl = await uploadLogo(blob);
+
+          console.log('Logo uploaded successfully, URL:', downloadUrl);
           logoUrl = downloadUrl;
         } catch (uploadError) {
           console.error('Error uploading logo:', uploadError);
-          Alert.alert('Erreur', 'Impossible de télécharger le logo. Veuillez réessayer.');
+          Alert.alert('Erreur', `Impossible de télécharger le logo: ${uploadError instanceof Error ? uploadError.message : 'Erreur inconnue'}`);
+          setIsUploading(false);
           return;
         }
       }
-      
+
       // If logo was removed, ensure it's set to empty string
       if (!localCompanyInfo.logo && companyInfo.logo) {
         logoUrl = '';
       }
-      
+
       // Update the company info with the new logo URL
       companyInfoToSave = {
         ...companyInfoToSave,
         logo: logoUrl
       };
-      
+
+      console.log('Saving company info with logo:', logoUrl);
       await updateCompanyInfo(companyInfoToSave);
       setHasUnsavedChanges(false);
+
       Alert.alert(
-        'Succès', 
+        'Succès',
         'Les informations de l\'entreprise ont été sauvegardées.',
         [{ text: 'OK' }]
       );
     } catch (error) {
       console.error('Error saving company info:', error);
-      Alert.alert('Erreur', 'Impossible de sauvegarder les informations. Veuillez réessayer.');
+      Alert.alert('Erreur', `Impossible de sauvegarder les informations: ${error instanceof Error ? error.message : 'Erreur inconnue'}`);
     } finally {
       setIsUploading(false);
     }
