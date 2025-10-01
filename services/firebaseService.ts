@@ -1,20 +1,17 @@
-import { 
-  collection, 
-  doc, 
-  addDoc, 
-  updateDoc, 
-  deleteDoc, 
-  getDocs, 
+import {
+  collection,
+  doc,
+  addDoc,
+  updateDoc,
+  deleteDoc,
+  getDocs,
   getDoc,
   onSnapshot,
   query,
   orderBy,
   where,
   limit as firestoreLimit,
-  Timestamp,
-  initializeFirestore,
-  persistentLocalCache,
-  persistentMemoryLocalCache
+  Timestamp
 } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
 import { db, storage, app } from '../config/firebase';
@@ -30,25 +27,8 @@ const COLLECTIONS = {
   ENTREPRISES: 'entreprises',
 };
 
-// Nouvelle méthode de persistance Firestore (web uniquement)
-if (typeof window !== 'undefined') {
-  try {
-    initializeFirestore(app, {
-      localCache: persistentLocalCache()
-    });
-    console.log('Firestore persistentLocalCache (IndexedDB) activé');
-  } catch (err) {
-    console.warn('Firestore IndexedDB persistence failed, fallback to memory cache:', err);
-    try {
-      initializeFirestore(app, {
-        localCache: persistentMemoryLocalCache()
-      });
-      console.log('Firestore persistentMemoryLocalCache (RAM) activé');
-    } catch (err2) {
-      console.error('Firestore memory cache fallback failed:', err2);
-    }
-  }
-}
+// Note: Firestore persistence is enabled by default in Firebase v9+
+// No additional configuration needed
 
 // Generic CRUD operations
 export class FirebaseService {

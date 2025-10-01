@@ -15,11 +15,11 @@ import { router } from 'expo-router';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useData } from '@/contexts/DataContext';
 import { useAuth } from '@/contexts/AuthContext';
-import { Client } from '@/contexts/DataContext';
+import { Client, Reservation } from '@/contexts/DataContext';
 import { ClientService } from '@/services/firebaseService';
 import { Calendar, Car, User, Plus, Upload } from 'lucide-react-native';
 import * as DocumentPicker from 'expo-document-picker';
-import { DualDatePicker } from '@/components/DualDatePicker';
+import DualDatePicker from '@/components/DualDatePicker';
 
 export default function AddReservationScreen() {
   const { colors } = useTheme();
@@ -292,7 +292,7 @@ export default function AddReservationScreen() {
     }
   };
 
-  const handleSaveReservation = () => {
+  const handleSaveReservation = async () => {
     if (!selectedVehicle || !selectedClient) {
       Alert.alert('Erreur', 'Veuillez sélectionner un véhicule et un client.');
       return;
@@ -306,28 +306,33 @@ export default function AddReservationScreen() {
     // Vérifier que la date de retour est après la date de début
     const startDate = new Date(`${reservationData.dateDebut}T${reservationData.heureDebut}`);
     const endDate = new Date(`${reservationData.dateRetourPrevue}T${reservationData.heureRetourPrevue}`);
-    
+
     if (endDate <= startDate) {
       Alert.alert('Erreur', 'La date de retour doit être postérieure à la date de départ.');
       return;
     }
 
-    const reservation: Omit<Reservation, 'id'> = {
-      userId: user?.uid || '',
-      vehiculeId: selectedVehicle,
-      clientId: selectedClient,
-      typeContrat: reservationData.typeContrat,
-      dateDebut: reservationData.dateDebut,
-      heureDebut: reservationData.heureDebut,
-      dateRetourPrevue: reservationData.dateRetourPrevue,
-      heureRetourPrevue: reservationData.heureRetourPrevue,
-      statut: 'Planifiée',
-      montantLocation: reservationData.montantLocation,
-    };
+    try {
+      const reservation: Omit<Reservation, 'id'> = {
+        userId: user?.uid || '',
+        vehiculeId: selectedVehicle,
+        clientId: selectedClient,
+        typeContrat: reservationData.typeContrat,
+        dateDebut: reservationData.dateDebut,
+        heureDebut: reservationData.heureDebut,
+        dateRetourPrevue: reservationData.dateRetourPrevue,
+        heureRetourPrevue: reservationData.heureRetourPrevue,
+        statut: 'Planifiée',
+        montantLocation: reservationData.montantLocation,
+      };
 
-    addReservation(reservation);
-    Alert.alert('Succès', 'Votre réservation a bien été créée');
-    router.back();
+      await addReservation(reservation);
+      Alert.alert('Succès', 'Votre réservation a bien été créée');
+      router.back();
+    } catch (error) {
+      console.error('Error creating reservation:', error);
+      Alert.alert('Erreur', 'Impossible de créer la réservation. Veuillez réessayer.');
+    }
   };
 
   const renderStepIndicator = () => (
@@ -806,12 +811,12 @@ export default function AddReservationScreen() {
       <DualDatePicker
         visible={showDualDatePicker}
         onClose={() => setShowDualDatePicker(false)}
-        onSelect={handleDualDateSelect}
+        onDatesSelect={handleDualDateSelect}
         reservedDates={reservedDates}
-        initialStartDate={reservationData.dateDebut}
-        initialStartTime={reservationData.heureDebut}
-        initialEndDate={reservationData.dateRetourPrevue}
-        initialEndTime={reservationData.heureRetourPrevue}
+        startDate={reservationData.dateDebut}
+        startTime={reservationData.heureDebut}
+        endDate={reservationData.dateRetourPrevue}
+        endTime={reservationData.heureRetourPrevue}
       />
 
       {/* Restriction Modal */}
