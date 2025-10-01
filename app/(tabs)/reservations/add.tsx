@@ -1,3 +1,26 @@
+import React, { useState, useEffect } from 'react';
+import {
+  View,
+  Text,
+  TouchableOpacity,
+  ScrollView,
+  StyleSheet,
+  TextInput,
+  Alert,
+  Modal,
+  SafeAreaView,
+  Image
+} from 'react-native';
+import { router } from 'expo-router';
+import { useTheme } from '@/contexts/ThemeContext';
+import { useData } from '@/contexts/DataContext';
+import { useAuth } from '@/contexts/AuthContext';
+import { Client } from '@/contexts/DataContext';
+import { ClientService } from '@/services/firebaseService';
+import { Calendar, Car, User, Plus, Upload } from 'lucide-react-native';
+import * as DocumentPicker from 'expo-document-picker';
+import { DualDatePicker } from '@/components/DualDatePicker';
+
 export default function AddReservationScreen() {
   const { colors } = useTheme();
   const { vehicles, clients, reservations, addReservation, addClient } = useData();
@@ -723,5 +746,623 @@ export default function AddReservationScreen() {
     }
   }, [reservations, reservationsMax]);
 
-  // At the end of the component
+  return (
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
+      <View style={[styles.header, { backgroundColor: colors.surface }]}>
+        <TouchableOpacity onPress={() => router.back()}>
+          <Text style={[styles.cancelButton, { color: colors.primary }]}>Annuler</Text>
+        </TouchableOpacity>
+        <Text style={[styles.headerTitle, { color: colors.text }]}>Nouvelle réservation</Text>
+        <View style={{ width: 60 }} />
+      </View>
+
+      {renderStepIndicator()}
+
+      <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+        {currentStep === 1 && renderVehicleSelection()}
+        {currentStep === 2 && renderDateTimeSelection()}
+        {currentStep === 3 && renderClientSelection()}
+      </ScrollView>
+
+      <View style={[styles.footer, { backgroundColor: colors.surface }]}>
+        {currentStep > 1 && (
+          <TouchableOpacity
+            style={[styles.footerButton, { backgroundColor: colors.surface, borderColor: colors.border }]}
+            onPress={() => setCurrentStep(currentStep - 1)}
+          >
+            <Text style={[styles.footerButtonText, { color: colors.text }]}>Précédent</Text>
+          </TouchableOpacity>
+        )}
+
+        {currentStep < 3 ? (
+          <TouchableOpacity
+            style={[
+              styles.footerButton,
+              styles.footerButtonPrimary,
+              { backgroundColor: canProceedToNextStep() ? colors.primary : colors.border }
+            ]}
+            onPress={() => setCurrentStep(currentStep + 1)}
+            disabled={!canProceedToNextStep()}
+          >
+            <Text style={styles.footerButtonTextPrimary}>Suivant</Text>
+          </TouchableOpacity>
+        ) : (
+          <TouchableOpacity
+            style={[
+              styles.footerButton,
+              styles.footerButtonPrimary,
+              { backgroundColor: canProceedToNextStep() ? colors.primary : colors.border }
+            ]}
+            onPress={handleSaveReservation}
+            disabled={!canProceedToNextStep()}
+          >
+            <Text style={styles.footerButtonTextPrimary}>Créer la réservation</Text>
+          </TouchableOpacity>
+        )}
+      </View>
+
+      {renderNewClientModal()}
+
+      <DualDatePicker
+        visible={showDualDatePicker}
+        onClose={() => setShowDualDatePicker(false)}
+        onSelect={handleDualDateSelect}
+        reservedDates={reservedDates}
+        initialStartDate={reservationData.dateDebut}
+        initialStartTime={reservationData.heureDebut}
+        initialEndDate={reservationData.dateRetourPrevue}
+        initialEndTime={reservationData.heureRetourPrevue}
+      />
+
+      {/* Restriction Modal */}
+      <Modal
+        visible={showRestrictionModal}
+        animationType="fade"
+        transparent
+      >
+        <View style={styles.restrictionModalOverlay}>
+          <View style={[styles.restrictionModalContent, { backgroundColor: colors.surface }]}>
+            <Text style={[styles.restrictionModalTitle, { color: colors.text }]}>
+              Limite atteinte
+            </Text>
+            <Text style={[styles.restrictionModalText, { color: colors.textSecondary }]}>
+              Vous avez atteint la limite de {reservationsMax} réservations pour votre abonnement.
+              Mettez à niveau pour créer plus de réservations.
+            </Text>
+            <TouchableOpacity
+              style={[styles.restrictionModalButton, { backgroundColor: colors.primary }]}
+              onPress={() => {
+                setShowRestrictionModal(false);
+                router.push('/(tabs)/settings/subscription');
+              }}
+            >
+              <Text style={styles.restrictionModalButtonText}>Mettre à niveau</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.restrictionModalButtonSecondary, { borderColor: colors.border }]}
+              onPress={() => {
+                setShowRestrictionModal(false);
+                router.back();
+              }}
+            >
+              <Text style={[styles.restrictionModalButtonTextSecondary, { color: colors.text }]}>
+                Retour
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+    </View>
+  );
 }
+
+const createStyles = (colors: any) => StyleSheet.create({
+  container: {
+    flex: 1,
+  },
+  header: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+  },
+  cancelButton: {
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  headerTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+  },
+  content: {
+    flex: 1,
+    paddingHorizontal: 20,
+  },
+  stepIndicator: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingVertical: 20,
+  },
+  stepContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  stepCircle: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: colors.border,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  stepCircleActive: {
+    backgroundColor: colors.primary,
+  },
+  stepText: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: colors.textSecondary,
+  },
+  stepTextActive: {
+    color: '#FFFFFF',
+  },
+  stepLine: {
+    width: 60,
+    height: 2,
+    backgroundColor: colors.border,
+    marginHorizontal: 4,
+  },
+  stepLineActive: {
+    backgroundColor: colors.primary,
+  },
+  stepContent: {
+    paddingVertical: 20,
+  },
+  stepTitle: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: colors.text,
+    marginBottom: 20,
+  },
+  vehiclesList: {
+    maxHeight: 500,
+  },
+  vehicleCard: {
+    flexDirection: 'row',
+    backgroundColor: colors.surface,
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 12,
+    borderWidth: 2,
+    borderColor: 'transparent',
+  },
+  vehicleCardSelected: {
+    borderColor: colors.primary,
+  },
+  vehicleImage: {
+    width: 80,
+    height: 80,
+    borderRadius: 8,
+  },
+  vehiclePlaceholder: {
+    width: 80,
+    height: 80,
+    borderRadius: 8,
+    backgroundColor: colors.border,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  vehicleInfo: {
+    flex: 1,
+    marginLeft: 12,
+  },
+  vehicleName: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: colors.text,
+  },
+  vehicleImmat: {
+    fontSize: 14,
+    color: colors.textSecondary,
+    marginTop: 4,
+  },
+  vehicleKm: {
+    fontSize: 12,
+    color: colors.textSecondary,
+    marginTop: 4,
+  },
+  vehiclePrice: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: colors.primary,
+    marginTop: 4,
+  },
+  vehicleStatus: {
+    justifyContent: 'center',
+  },
+  statusBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 4,
+  },
+  statusText: {
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  emptyState: {
+    alignItems: 'center',
+    paddingVertical: 60,
+  },
+  emptyTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: colors.text,
+    marginTop: 16,
+  },
+  emptySubtitle: {
+    fontSize: 14,
+    color: colors.textSecondary,
+    marginTop: 8,
+    textAlign: 'center',
+  },
+  dateTimeContainer: {
+    marginVertical: 20,
+  },
+  dualDateButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.surface,
+    borderRadius: 12,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  dualDateButtonContent: {
+    flex: 1,
+    marginLeft: 12,
+  },
+  dualDateButtonTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: colors.text,
+  },
+  dualDateButtonSubtitle: {
+    fontSize: 14,
+    color: colors.textSecondary,
+    marginTop: 4,
+  },
+  selectedDatesContainer: {
+    marginTop: 8,
+  },
+  selectedDateText: {
+    fontSize: 14,
+    color: colors.text,
+    marginTop: 4,
+  },
+  summaryCard: {
+    backgroundColor: colors.surface,
+    borderRadius: 12,
+    padding: 16,
+    marginTop: 20,
+  },
+  summaryTitle: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: colors.text,
+    marginBottom: 12,
+  },
+  summaryRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    paddingVertical: 8,
+  },
+  summaryLabel: {
+    fontSize: 14,
+    color: colors.textSecondary,
+  },
+  summaryValue: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: colors.text,
+  },
+  contractSection: {
+    marginTop: 20,
+  },
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: colors.text,
+    marginBottom: 12,
+  },
+  contractOptions: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  contractOption: {
+    flex: 1,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    borderWidth: 2,
+    borderColor: colors.border,
+    alignItems: 'center',
+  },
+  contractOptionActive: {
+    borderColor: colors.primary,
+    backgroundColor: colors.primary + '10',
+  },
+  contractOptionText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: colors.textSecondary,
+  },
+  contractOptionTextActive: {
+    color: colors.primary,
+  },
+  pricingSection: {
+    marginTop: 20,
+    backgroundColor: colors.surface,
+    borderRadius: 12,
+    padding: 16,
+  },
+  pricingSectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  pricingSectionTitle: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: colors.text,
+    marginLeft: 8,
+  },
+  calculatedPriceRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    backgroundColor: colors.primary + '10',
+    borderRadius: 8,
+  },
+  calculatedPriceLabel: {
+    fontSize: 14,
+    color: colors.textSecondary,
+  },
+  calculatedPriceValue: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: colors.primary,
+  },
+  inputGroup: {
+    marginBottom: 16,
+  },
+  label: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: colors.text,
+    marginBottom: 8,
+  },
+  input: {
+    backgroundColor: colors.background,
+    borderRadius: 8,
+    padding: 12,
+    fontSize: 16,
+    color: colors.text,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  helpText: {
+    fontSize: 12,
+    color: colors.textSecondary,
+    marginTop: 4,
+  },
+  textArea: {
+    minHeight: 100,
+    textAlignVertical: 'top',
+  },
+  clientHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  newClientButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.primary,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 8,
+    gap: 4,
+  },
+  newClientButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: colors.background,
+  },
+  clientsList: {
+    maxHeight: 500,
+  },
+  clientCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.surface,
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 12,
+    borderWidth: 2,
+    borderColor: 'transparent',
+  },
+  clientCardSelected: {
+    borderColor: colors.primary,
+  },
+  clientAvatar: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    backgroundColor: colors.primary,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  clientAvatarText: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#FFFFFF',
+  },
+  clientInfo: {
+    flex: 1,
+    marginLeft: 12,
+  },
+  clientName: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: colors.text,
+  },
+  clientContact: {
+    fontSize: 14,
+    color: colors.textSecondary,
+    marginTop: 4,
+  },
+  clientDocuments: {
+    flexDirection: 'row',
+    gap: 4,
+  },
+  documentBadge: {
+    backgroundColor: colors.primary + '20',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 4,
+  },
+  documentText: {
+    fontSize: 10,
+    fontWeight: '600',
+    color: colors.primary,
+  },
+  modalContainer: {
+    flex: 1,
+    backgroundColor: colors.background,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+  },
+  modalCancel: {
+    fontSize: 16,
+    color: colors.error,
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: colors.text,
+  },
+  modalSave: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: colors.primary,
+  },
+  modalSaveDisabled: {
+    opacity: 0.5,
+  },
+  modalContent: {
+    flex: 1,
+    padding: 20,
+  },
+  documentButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.surface,
+    borderRadius: 8,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: colors.border,
+    gap: 8,
+  },
+  documentButtonText: {
+    fontSize: 14,
+    color: colors.text,
+  },
+  footer: {
+    flexDirection: 'row',
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    gap: 12,
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+  },
+  footerButton: {
+    flex: 1,
+    paddingVertical: 14,
+    borderRadius: 8,
+    alignItems: 'center',
+    borderWidth: 1,
+  },
+  footerButtonPrimary: {
+    borderWidth: 0,
+  },
+  footerButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  footerButtonTextPrimary: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#FFFFFF',
+  },
+  restrictionModalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  restrictionModalContent: {
+    width: '100%',
+    maxWidth: 400,
+    borderRadius: 12,
+    padding: 24,
+  },
+  restrictionModalTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    marginBottom: 12,
+    textAlign: 'center',
+  },
+  restrictionModalText: {
+    fontSize: 16,
+    lineHeight: 24,
+    marginBottom: 24,
+    textAlign: 'center',
+  },
+  restrictionModalButton: {
+    paddingVertical: 14,
+    borderRadius: 8,
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  restrictionModalButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#FFFFFF',
+  },
+  restrictionModalButtonSecondary: {
+    paddingVertical: 14,
+    borderRadius: 8,
+    alignItems: 'center',
+    borderWidth: 1,
+  },
+  restrictionModalButtonTextSecondary: {
+    fontSize: 16,
+    fontWeight: '600',
+  },
+});
