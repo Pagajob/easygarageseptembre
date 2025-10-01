@@ -1,10 +1,10 @@
-import {
-  collection,
-  doc,
-  addDoc,
-  updateDoc,
-  deleteDoc,
-  getDocs,
+import { 
+  collection, 
+  doc, 
+  addDoc, 
+  updateDoc, 
+  deleteDoc, 
+  getDocs, 
   getDoc,
   onSnapshot,
   query,
@@ -13,11 +13,11 @@ import {
   limit as firestoreLimit,
   Timestamp,
   initializeFirestore,
-  persistentLocalCache
+  persistentLocalCache,
+  persistentMemoryLocalCache
 } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
-import { db, storage } from '../config/firebase';
-import app from '../config/firebase';
+import { db, storage, app } from '../config/firebase';
 import { Vehicle, Client, Charge, Reservation } from '../contexts/DataContext';
 
 // Collections
@@ -38,7 +38,15 @@ if (typeof window !== 'undefined') {
     });
     console.log('Firestore persistentLocalCache (IndexedDB) activé');
   } catch (err) {
-    console.warn('Firestore IndexedDB persistence failed:', err);
+    console.warn('Firestore IndexedDB persistence failed, fallback to memory cache:', err);
+    try {
+      initializeFirestore(app, {
+        localCache: persistentMemoryLocalCache()
+      });
+      console.log('Firestore persistentMemoryLocalCache (RAM) activé');
+    } catch (err2) {
+      console.error('Firestore memory cache fallback failed:', err2);
+    }
   }
 }
 

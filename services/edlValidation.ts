@@ -5,8 +5,6 @@ export interface EDLData {
   // Informations essentielles avant les photos
   kilometrage?: number;
   carburant?: number; // 1-4 (1=vide, 4=plein)
-  accessoires?: string;
-  degats?: string;
   photos: {
     compteur?: string;
     face_avant?: string;

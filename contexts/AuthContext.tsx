@@ -27,6 +27,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { router } from 'expo-router';
 import { useBiometricAuth } from '@/hooks/useBiometricAuth';
 import { AbonnementUtilisateur, Abonnement } from '@/types/abonnement';
+import * as IAP from '@/services/iapService';
 
 export interface UserProfile {
   uid: string;
@@ -67,6 +68,8 @@ interface AuthContextType {
   abonnements: Abonnement[];
   getAbonnementCourant: () => Abonnement | undefined;
   refreshAbonnement: () => Promise<void>;
+  acheterAbonnement: (productId: string) => Promise<void>;
+  restaurerAbonnement: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -490,6 +493,27 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
+  // Acheter un abonnement via l'App Store
+  const acheterAbonnement = async (productId: string) => {
+    const purchase = await IAP.buySubscription(productId);
+    // Récupérer le reçu de la transaction
+    const receipt = (purchase as any)?.transactionReceipt;
+    if (receipt && user) {
+      await IAP.validateAppleReceipt(receipt, user.uid);
+    }
+    await refreshAbonnement();
+  };
+
+  // Restaurer les achats
+  const restaurerAbonnement = async () => {
+    const purchases = await IAP.restorePurchases();
+    // Prendre le reçu du dernier achat restauré
+    const receipt = (purchases?.[0] as any)?.transactionReceipt;
+    if (receipt && user) {
+      await IAP.validateAppleReceipt(receipt, user.uid);
+    }
+    await refreshAbonnement();
+  };
 
   // Rafraîchir l'abonnement à chaque connexion
   useEffect(() => {
@@ -522,6 +546,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         abonnements,
         getAbonnementCourant,
         refreshAbonnement,
+        acheterAbonnement,
+        restaurerAbonnement,
       }}
     >
       {children}

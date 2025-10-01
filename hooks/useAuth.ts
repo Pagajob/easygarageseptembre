@@ -13,6 +13,8 @@ export interface AuthContextType {
   abonnements: Abonnement[];
   getAbonnementCourant: () => Abonnement | undefined;
   refreshAbonnement: () => Promise<void>;
+  acheterAbonnement: (productId: string) => Promise<void>;
+  restaurerAbonnement: () => Promise<boolean>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);

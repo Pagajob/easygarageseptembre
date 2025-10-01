@@ -145,7 +145,7 @@ export default function SignaturePad({
   };
 
   // Mobile signature component
-  const renderMobileSignature = () => {
+  const renderMobileSignature = () => {    
     if (typeof SignatureScreen !== 'function') {
       return (
         <View style={styles.fallbackContainer}>
@@ -161,47 +161,22 @@ export default function SignaturePad({
         box-shadow: none;
         border: 2px dashed ${colors.border};
         border-radius: 12px;
-        margin: 0;
-        height: 100%;
+        margin: 16px;
       }
       .m-signature-pad--body {
         border: none;
         background-color: ${colors.background};
       }
       .m-signature-pad--footer {
-        display: flex !important;
-        margin: 0;
-        padding: 12px;
-        background-color: ${colors.surface};
-        border-top: 1px solid ${colors.border};
-      }
-      .m-signature-pad--footer .button {
-        background-color: ${colors.primary};
-        color: white;
-        border: none;
-        padding: 14px 28px;
-        border-radius: 8px;
-        font-size: 16px;
-        font-weight: 600;
-        margin: 4px;
-        cursor: pointer;
-        flex: 1;
-      }
-      .m-signature-pad--footer .button.clear {
-        background-color: ${colors.surface};
-        color: ${colors.text};
-        border: 1px solid ${colors.border};
+        display: none;
       }
       body {
         background-color: ${colors.background};
-        margin: 0;
-        padding: 0;
       }
     `;
 
     return (
-      <View style={[styles.mobileContainer, style]}>
-        {descriptionText ? <Text style={styles.descriptionText}>{descriptionText}</Text> : null}
+      <View style={styles.mobileContainer}>
         <SignatureScreen
           ref={signatureRef}
           onOK={handleMobileOK}
@@ -209,11 +184,25 @@ export default function SignaturePad({
           onClear={onClear}
           onBegin={handleBegin}
           onEnd={handleEnd}
-          descriptionText=""
+          descriptionText={descriptionText}
           clearText={clearText}
           confirmText={confirmText}
-          webStyle={webStyleString}
+          {...(Platform.OS !== 'web' ? { webStyle: webStyleString } : {})}
+          style={style}
         />
+        <View style={styles.mobileButtonsContainer}>
+          <TouchableOpacity style={styles.clearButton} onPress={handleClear}>
+            <RotateCcw size={20} color={colors.textSecondary} />
+            <Text style={styles.clearButtonText}>{clearText}</Text>
+          </TouchableOpacity>
+          <TouchableOpacity 
+            style={[styles.confirmButton, isEmpty && styles.confirmButtonDisabled]} 
+            onPress={handleConfirm}
+          >
+            <Check size={20} color={colors.background} />
+            <Text style={styles.confirmButtonText}>{confirmText}</Text>
+          </TouchableOpacity>
+        </View>
       </View>
     );
   };

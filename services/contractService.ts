@@ -125,44 +125,27 @@ export class ContractService {
         carburant_max: '',
       };
 
-      // Generate contract HTML using Supabase Edge Function
-      const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL;
-      const supabaseKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY;
+      // Create contract HTML content
+      const contractHTML = this.generateContractHTML(contractData);
 
-      if (!supabaseUrl || !supabaseKey) {
-        throw new Error('Supabase configuration missing');
-      }
-
-      const response = await fetch(`${supabaseUrl}/functions/v1/generate-contract`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${supabaseKey}`,
-        },
-        body: JSON.stringify({ contractData }),
-      });
-
-      if (!response.ok) {
-        throw new Error(`Failed to generate contract HTML: ${response.statusText}`);
-      }
-
-      const { html } = await response.json();
-
-      // Generate PDF based on platform
+      // Generate PDF
+      let pdfPath = '';
+      
       if (Platform.OS === 'web') {
-        const pdfBlob = await this.generatePDFFromHTMLWeb(html);
+        // For web, use a different approach with html2canvas and jsPDF
+        const pdfBlob = await this.generatePDFFromHTMLWeb(contractHTML);
         return await this.uploadPDFToFirebase(pdfBlob, reservation.id);
       } else {
         // For mobile platforms
         const options = {
-          html: html,
+          html: contractHTML,
           fileName: `contrat_${reservation.id}`,
           directory: 'Documents',
           base64: false
         };
 
         const pdf = await RNHTMLtoPDF.convert(options);
-        const pdfPath = pdf.filePath;
+        pdfPath = pdf.filePath;
 
         // Upload PDF to Firebase Storage
         const pdfBlob = await this.fileToBlob(pdfPath);
@@ -246,24 +229,14 @@ startxref
     contractData: ContractData
   ): Promise<boolean> {
     try {
-      // On mobile, skip email sending as API routes don't work
-      // Return true to allow the flow to continue
-      if (Platform.OS !== 'web') {
-        console.log('[iOS] Contract email skipped - API routes not available on mobile');
-        console.log('[iOS] Contract URL:', contractUrl);
-        console.log('[iOS] User can share the contract manually');
-        return true;
-      }
-
-      // Use Supabase URL for API calls (Web only)
-      const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL;
-      if (!supabaseUrl) {
-        console.error('EXPO_PUBLIC_SUPABASE_URL not configured');
-        return false;
-      }
-
-      const apiUrl = `${supabaseUrl}/functions/v1/send-email`;
-
+      // Use absolute URL for API calls
+      const apiUrl =
+        (typeof window !== 'undefined' && window.location && window.location.origin)
+          ? `${window.location.origin}/api/send-email`
+          : process.env.EXPO_PUBLIC_API_URL
+            ? `${process.env.EXPO_PUBLIC_API_URL}/api/send-email`
+            : 'https://easygarage-app.vercel.app/api/send-email';
+      
       const response = await fetch(apiUrl, {
         method: 'POST',
         headers: {

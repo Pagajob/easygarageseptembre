@@ -1,0 +1,120 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>subscription_products</key>
+    <array>
+        <dict>
+            <key>product_id</key>
+            <string>easygarage.essentiel.weekly</string>
+            <key>title</key>
+            <string>Essentiel</string>
+            <key>description</key>
+            <string>5 véhicules, 50 réservations/mois, 1 utilisateur, EDL 7 jours, export CSV/PDF, logo perso</string>
+            <key>price</key>
+            <string>6.99</string>
+            <key>currency</key>
+            <string>EUR</string>
+            <key>localized_price</key>
+            <string>6,99 €/semaine</string>
+            <key>type</key>
+            <string>weekly</string>
+            <key>plan</key>
+            <string>essentiel</string>
+        </dict>
+        <dict>
+            <key>product_id</key>
+            <string>easygarage.pro.weekly</string>
+            <key>title</key>
+            <string>Pro</string>
+            <key>description</key>
+            <string>30 véhicules, réservations illimitées, 5 utilisateurs, EDL 1 mois, stats avancées, support prioritaire</string>
+            <key>price</key>
+            <string>12.99</string>
+            <key>currency</key>
+            <string>EUR</string>
+            <key>localized_price</key>
+            <string>12,99 €/semaine</string>
+            <key>type</key>
+            <string>weekly</string>
+            <key>plan</key>
+            <string>pro</string>
+        </dict>
+        <dict>
+            <key>product_id</key>
+            <string>easygarage.premium.weekly</string>
+            <key>title</key>
+            <string>Premium</string>
+            <key>description</key>
+            <string>Véhicules et utilisateurs illimités, EDL 1 an, multi-sociétés, automatisations, API adresse, support téléphonique</string>
+            <key>price</key>
+            <string>24.99</string>
+            <key>currency</key>
+            <string>EUR</string>
+            <key>localized_price</key>
+            <string>24,99 €/semaine</string>
+            <key>type</key>
+            <string>weekly</string>
+            <key>plan</key>
+            <string>premium</string>
+        </dict>
+    </array>
+    <key>legacy_products</key>
+    <array>
+        <dict>
+            <key>product_id</key>
+            <string>easygarage.essentiel</string>
+            <key>title</key>
+            <string>Essentiel</string>
+            <key>description</key>
+            <string>5 véhicules, 50 réservations/mois, 1 utilisateur, EDL 7 jours, export CSV/PDF, logo perso</string>
+            <key>price</key>
+            <string>29.99</string>
+            <key>currency</key>
+            <string>EUR</string>
+            <key>localized_price</key>
+            <string>29,99 €/mois</string>
+            <key>type</key>
+            <string>monthly</string>
+            <key>plan</key>
+            <string>essentiel</string>
+        </dict>
+        <dict>
+            <key>product_id</key>
+            <string>easygarage.pro</string>
+            <key>title</key>
+            <string>Pro</string>
+            <key>description</key>
+            <string>30 véhicules, réservations illimitées, 5 utilisateurs, EDL 1 mois, stats avancées, support prioritaire</string>
+            <key>price</key>
+            <string>49.99</string>
+            <key>currency</key>
+            <string>EUR</string>
+            <key>localized_price</key>
+            <string>49,99 €/mois</string>
+            <key>type</key>
+            <string>monthly</string>
+            <key>plan</key>
+            <string>pro</string>
+        </dict>
+        <dict>
+            <key>product_id</key>
+            <string>easygarage.premium</string>
+            <key>title</key>
+            <string>Premium</string>
+            <key>description</key>
+            <string>Véhicules et utilisateurs illimités, EDL 1 an, multi-sociétés, automatisations, API adresse, support téléphonique</string>
+            <key>price</key>
+            <string>99.99</string>
+            <key>currency</key>
+            <string>EUR</string>
+            <key>localized_price</key>
+            <string>99,99 €/mois</string>
+            <key>type</key>
+            <string>monthly</string>
+            <key>plan</key>
+            <string>premium</string>
+        </dict>
+    </array>
+</dict>
+</plist>

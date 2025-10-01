@@ -80,80 +80,21 @@ export default function EtatLieuxDepartScreen() {
   };
 
   const handleEDLComplete = async (wizardData: EDLData) => {
-    if (!reservation) return;
-
-    setIsUploading(true);
-
     try {
-      const uploadedPhotos: any = {};
-      for (const [key, uri] of Object.entries(wizardData.photos)) {
-        if (Array.isArray(uri)) {
-          uploadedPhotos[key] = await Promise.all(
-            uri.map(u => u ? uploadFileIfNeeded(u, 'photo', key) : u)
-          );
-        } else if (uri) {
-          uploadedPhotos[key] = await uploadFileIfNeeded(uri, 'photo', key);
-        }
-      }
-
-      let uploadedVideo = undefined;
-      if (wizardData.video) {
-        uploadedVideo = await uploadFileIfNeeded(wizardData.video, 'video', 'video');
-      }
-
-      let uploadedRenterSignature = wizardData.renterSignature;
-      if (wizardData.renterSignature && !wizardData.renterSignature.startsWith('http')) {
-        try {
-          const signatureBlob = await uriToBlob(wizardData.renterSignature);
-          uploadedRenterSignature = await ReservationService.uploadEDLFile(reservation.id, signatureBlob, 'photo', 'signature_renter');
-        } catch (error) {
-          console.error('Error uploading renter signature:', error);
-        }
-      }
-
-      let uploadedClientSignature = wizardData.clientSignature;
-      if (wizardData.clientSignature && !wizardData.clientSignature.startsWith('http')) {
-        try {
-          const signatureBlob = await uriToBlob(wizardData.clientSignature);
-          uploadedClientSignature = await ReservationService.uploadEDLFile(reservation.id, signatureBlob, 'photo', 'signature_client');
-        } catch (error) {
-          console.error('Error uploading client signature:', error);
-        }
-      }
-
-      const edlDepart = {
-        type: (wizardData.mode === 'photo' ? 'Photo' : wizardData.mode === 'video' ? 'Vidéo' : 'Aucun') as 'Photo' | 'Vidéo' | 'Aucun',
-        compteur: uploadedPhotos.compteur || '',
-        kmDepart: wizardData.kilometrage || 0,
-        photos: uploadedPhotos,
-        video: uploadedVideo,
-        carburant: wizardData.carburant || 4,
-        accessoires: wizardData.accessoires || '',
-        degats: wizardData.degats || '',
-        dateHeure: new Date().toISOString(),
-        coordonnees: '',
-        renterSignature: uploadedRenterSignature,
-        clientSignature: uploadedClientSignature,
-      };
-
-      await updateReservation(reservation.id, {
-        edlDepart,
-        statut: 'En cours',
+      // Ajout en base (collection 'edls')
+      await FirebaseService.create('edls', {
+        ...wizardData,
+        reservationId,
+        createdAt: new Date().toISOString(),
       });
-
-      await autoGenerateContractOnEDL(reservation.id);
-
       setSuccessMessage('État des lieux enregistré avec succès !');
       setShowSuccessToast(true);
-
+      // Redirection ou autre action après succès
       setTimeout(() => {
         router.push('/(tabs)');
       }, 2000);
     } catch (error) {
-      console.error('Error in handleEDLComplete:', error);
       showError('Erreur lors de la sauvegarde de l\'état des lieux.');
-    } finally {
-      setIsUploading(false);
     }
   };
 

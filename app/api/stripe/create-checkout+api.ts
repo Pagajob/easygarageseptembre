@@ -1,74 +1,88 @@
+import Stripe from 'npm:stripe@17.7.0';
+import { stripeProducts } from '@/src/stripe-config';
+
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
-  "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Client-Info, Apikey",
+  "Access-Control-Allow-Headers": "Content-Type, Authorization",
 };
 
-export async function OPTIONS(request: Request) {
-  return new Response(null, {
-    status: 200,
-    headers: corsHeaders,
-  });
-}
-
 export async function POST(request: Request) {
-  try {
-    const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL;
-    const supabaseAnonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY;
+  if (request.method === "OPTIONS") {
+    return new Response(null, {
+      status: 200,
+      headers: corsHeaders,
+    });
+  }
 
-    if (!supabaseUrl || !supabaseAnonKey) {
+  try {
+    const stripeSecretKey = Deno.env.get('STRIPE_SECRET_KEY');
+    if (!stripeSecretKey) {
       return new Response(
-        JSON.stringify({ error: 'Supabase configuration missing' }),
-        {
+        JSON.stringify({ error: 'Stripe secret key not configured' }),
+        { 
           status: 500,
           headers: { ...corsHeaders, 'Content-Type': 'application/json' }
         }
       );
     }
 
+    const stripe = new Stripe(stripeSecretKey, {
+      apiVersion: '2024-12-18.acacia',
+    });
+
     const { priceId, userId, successUrl, cancelUrl } = await request.json();
 
     if (!priceId || !userId) {
       return new Response(
         JSON.stringify({ error: 'Missing required parameters: priceId, userId' }),
-        {
+        { 
           status: 400,
           headers: { ...corsHeaders, 'Content-Type': 'application/json' }
         }
       );
     }
 
-    const mode = 'subscription';
-
-    const functionUrl = `${supabaseUrl}/functions/v1/stripe-checkout`;
-
-    const response = await fetch(functionUrl, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${supabaseAnonKey}`,
-      },
-      body: JSON.stringify({
-        price_id: priceId,
-        success_url: successUrl,
-        cancel_url: cancelUrl,
-        mode,
-      }),
-    });
-
-    if (!response.ok) {
-      const errorData = await response.json();
-      throw new Error(errorData.error || 'Failed to create checkout session');
+    // Validate that the price ID exists in our products
+    const product = stripeProducts.find(p => p.priceId === priceId);
+    if (!product) {
+      return new Response(
+        JSON.stringify({ error: 'Invalid price ID' }),
+        { 
+          status: 400,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        }
+      );
     }
 
-    const data = await response.json();
+    // Create checkout session
+    const session = await stripe.checkout.sessions.create({
+      payment_method_types: ['card'],
+      line_items: [
+        {
+          price: priceId,
+          quantity: 1,
+        },
+      ],
+      mode: product.mode,
+      success_url: successUrl || `${request.headers.get('origin')}/success?session_id={CHECKOUT_SESSION_ID}`,
+      cancel_url: cancelUrl || `${request.headers.get('origin')}/cancel`,
+      metadata: {
+        userId: userId,
+        productName: product.name
+      },
+      // For subscriptions, we can add a customer portal
+      ...(product.mode === 'subscription' && {
+        customer_creation: 'always',
+      })
+    });
 
     return new Response(
-      JSON.stringify({
-        sessionId: data.sessionId,
-        url: data.url
+      JSON.stringify({ 
+        sessionId: session.id,
+        url: session.url 
       }),
-      {
+      { 
         status: 200,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       }
@@ -76,13 +90,13 @@ export async function POST(request: Request) {
 
   } catch (error) {
     console.error('Error creating checkout session:', error);
-
+    
     return new Response(
-      JSON.stringify({
+      JSON.stringify({ 
         error: 'Failed to create checkout session',
         details: error instanceof Error ? error.message : 'Unknown error'
       }),
-      {
+      { 
         status: 500,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       }

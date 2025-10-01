@@ -39,6 +39,15 @@
         {
           "serviceId": "com.allanox.easygarage.app"
         }
+      ],
+      [
+        "react-native-iap",
+        {
+          "ios": {
+            "useStoreKit2": true,
+            "enableReceiptValidation": true
+          }
+        }
       ]
     ],
     "experiments": {

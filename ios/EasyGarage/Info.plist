@@ -50,15 +50,15 @@
       <true/>
     </dict>
     <key>NSCameraUsageDescription</key>
-    <string>EasyGarage a besoin d'accéder à votre caméra pour prendre des photos et vidéos des véhicules lors des états des lieux</string>
+    <string>Allow $(PRODUCT_NAME) to access your camera</string>
     <key>NSFaceIDUsageDescription</key>
-    <string>EasyGarage utilise Face ID pour sécuriser l'accès à votre compte et protéger vos données</string>
+    <string>Allow EasyGarage to access your Face ID biometric data.</string>
     <key>NSMicrophoneUsageDescription</key>
-    <string>EasyGarage a besoin d'accéder au microphone pour enregistrer des vidéos avec le son lors des états des lieux</string>
+    <string>Allow $(PRODUCT_NAME) to access your microphone</string>
     <key>NSPhotoLibraryAddUsageDescription</key>
-    <string>EasyGarage a besoin de sauvegarder les photos et vidéos des états des lieux dans votre photothèque</string>
+    <string>Allow $(PRODUCT_NAME) to save photos</string>
     <key>NSPhotoLibraryUsageDescription</key>
-    <string>EasyGarage a besoin d'accéder à vos photos pour vous permettre de sélectionner des images lors des états des lieux</string>
+    <string>Allow $(PRODUCT_NAME) to access your photos</string>
     <key>NSUserActivityTypes</key>
     <array>
       <string>$(PRODUCT_BUNDLE_IDENTIFIER).expo.index_route</string>
