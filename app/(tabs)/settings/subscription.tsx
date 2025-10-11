@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Alert, ScrollView, SafeAreaView, Image } from 'react-native';
 import { useAuth } from '@/contexts/AuthContext';
 import { useTheme } from '@/contexts/ThemeContext';
-import { getSubscriptions } from '@/services/iapService';
+import { PlanService, PLANS, PlanId } from '@/services/planService';
 import { Check, Star, Shield, Users, FileText, ArrowRight } from 'lucide-react-native';
 
 const PLAN_FEATURES: Record<string, string[]> = {
@@ -48,52 +48,31 @@ const PLAN_ICONS: Record<string, any> = {
 };
 
 export default function SubscriptionScreen() {
-  const { abonnementUtilisateur, acheterAbonnement, refreshAbonnement, user, updateUserProfile } = useAuth();
+  const { user, updateUserProfile } = useAuth();
   const { colors } = useTheme();
-  const [plans, setPlans] = useState<any[]>([]);
+  const [currentPlan, setCurrentPlan] = useState<PlanId>('free');
   const [loading, setLoading] = useState(true);
   const [processing, setProcessing] = useState('');
 
   useEffect(() => {
     (async () => {
       setLoading(true);
-      const subs = await getSubscriptions();
-      
-      // Remplacer les prix par les prix hebdomadaires
-      const updatedSubs = subs.map(sub => {
-        if (sub.title === 'Essentiel') {
-          return { ...sub, price: '6.99', localizedPrice: '6,99 €/semaine' };
-        } else if (sub.title === 'Pro') {
-          return { ...sub, price: '12.99', localizedPrice: '12,99 €/semaine' };
-        } else if (sub.title === 'Premium') {
-          return { ...sub, price: '24.99', localizedPrice: '24,99 €/semaine' };
-        }
-        return sub;
-      });
-      
-      setPlans(updatedSubs);
+      const p = await PlanService.getCurrentPlan();
+      setCurrentPlan(p);
       setLoading(false);
     })();
   }, []);
 
-  const handleUpgrade = async (productId: string, planName: string) => {
+  const handleUpgrade = async (plan: PlanId, label: string) => {
     try {
-      setProcessing(productId);
-      
-      // Initier l'achat via l'App Store
-      await acheterAbonnement(productId);
-      
-      // Mettre à jour le profil utilisateur avec le plan choisi
+      setProcessing(plan);
+      await PlanService.openCheckout(plan, user?.uid);
       if (user) {
         await updateUserProfile({
-          plan: planName.toLowerCase()
+          plan
         });
       }
-      
-      // Rafraîchir les informations d'abonnement
-      await refreshAbonnement();
-      
-      Alert.alert('Abonnement mis à jour', 'Votre abonnement a bien été activé.');
+      Alert.alert('Redirection', 'Ouverture du portail de paiement...');
     } catch (e) {
       Alert.alert('Erreur', 'Impossible de finaliser l\'abonnement.');
     } finally {
@@ -101,37 +80,26 @@ export default function SubscriptionScreen() {
     }
   };
 
-  const getProductId = (planName: string): string => {
-    switch (planName) {
-      case 'Essentiel': return 'easygarage.essentiel';
-      case 'Pro': return 'easygarage.pro';
-      case 'Premium': return 'easygarage.premium';
-      default: return '';
-    }
-  };
-
   const styles = createStyles(colors);
 
   const renderCurrentPlan = () => {
-    if (!abonnementUtilisateur) return null;
-    const Icon = PLAN_ICONS[abonnementUtilisateur.abonnement] || Star;
-    // Cherche le prix du plan actuel dans la liste des plans
-    const currentPlan = plans.find(p => p.title === abonnementUtilisateur.abonnement);
+    const Label = currentPlan === 'free' ? 'Gratuit' : currentPlan === 'essentiel' ? 'Essentiel' : currentPlan === 'pro' ? 'Pro' : 'Entreprise';
+    const Icon = PLAN_ICONS[Label] || Star;
+    const price = currentPlan === 'essentiel' ? '29,99 €/mois' : currentPlan === 'pro' ? '59,99 €/mois' : currentPlan === 'entreprise' ? '99,99 €/mois' : '0 €';
     return (
       <View style={styles.currentCard}>
         <View style={styles.currentHeaderRow}>
           <Icon size={36} color={colors.primary} style={{ marginRight: 14 }} />
           <View style={{ flex: 1 }}>
             <View style={styles.currentPlanRow}>
-              <Text style={styles.planName}>{abonnementUtilisateur.abonnement}</Text>
-              <View style={[styles.badge, { backgroundColor: abonnementUtilisateur.statut === 'actif' ? colors.success : colors.error }]}> 
-                <Text style={styles.badgeText}>{abonnementUtilisateur.statut === 'actif' ? 'Actif' : 'Expiré'}</Text>
+              <Text style={styles.planName}>{Label}</Text>
+              <View style={[styles.badge, { backgroundColor: colors.success }]}> 
+                <Text style={styles.badgeText}>Actif</Text>
               </View>
             </View>
-            <Text style={styles.planPrice}>{currentPlan?.localizedPrice || ''}</Text>
+            <Text style={styles.planPrice}>{price}</Text>
           </View>
         </View>
-        <Text style={styles.renewal}>Renouvellement : {new Date(abonnementUtilisateur.dateFin).toLocaleDateString('fr-FR')}</Text>
       </View>
     );
   };
@@ -157,45 +125,39 @@ export default function SubscriptionScreen() {
               showsHorizontalScrollIndicator={false} 
               contentContainerStyle={styles.plansContainer}
             >
-              {plans.map(plan => {
-                const Icon = PLAN_ICONS[plan.title] || Star;
-                const isCurrent = abonnementUtilisateur?.abonnement === plan.title;
-                const productId = getProductId(plan.title);
-                
+              {([
+                { id: 'free', label: 'Gratuit', price: '0 €' },
+                { id: 'essentiel', label: 'Essentiel', price: '29,99 €/mois' },
+                { id: 'pro', label: 'Pro', price: '59,99 €/mois' },
+                { id: 'entreprise', label: 'Entreprise', price: '99,99 €/mois' },
+              ] as { id: PlanId; label: string; price: string }[]).map(plan => {
+                const Icon = PLAN_ICONS[plan.label] || Star;
+                const isCurrent = currentPlan === plan.id;
                 return (
-                  <View key={plan.productId || productId} style={[
-                    styles.planCard,
-                    isCurrent && styles.planCardCurrent
-                  ]}>
+                  <View key={plan.id} style={[styles.planCard, isCurrent && styles.planCardCurrent]}>
                     <View style={styles.planHeader}>
                       <Icon size={28} color={colors.primary} />
-                      <Text style={styles.planTitle}>{plan.title}</Text>
+                      <Text style={styles.planTitle}>{plan.label}</Text>
                     </View>
-                    
-                    <Text style={styles.planPrice}>{plan.localizedPrice}</Text>
-                    
+                    <Text style={styles.planPrice}>{plan.price}</Text>
                     <View style={styles.featuresList}>
-                      {PLAN_FEATURES[plan.title]?.map((feature, i) => (
+                      {PLAN_FEATURES[plan.label]?.map((feature, i) => (
                         <View key={i} style={styles.featureRow}>
                           <Check size={16} color={colors.success} />
                           <Text style={styles.featureText}>{feature}</Text>
                         </View>
                       ))}
                     </View>
-                    
                     <TouchableOpacity
-                      style={[
-                        styles.chooseButton,
-                        (isCurrent || processing === (plan.productId || productId)) && styles.chooseButtonDisabled
-                      ]}
-                      onPress={() => handleUpgrade(plan.productId || productId, plan.title)}
-                      disabled={isCurrent || processing === (plan.productId || productId)}
+                      style={[styles.chooseButton, (isCurrent || processing === plan.id) && styles.chooseButtonDisabled]}
+                      onPress={() => handleUpgrade(plan.id, plan.label)}
+                      disabled={isCurrent || processing === plan.id}
                     >
-                      {processing === (plan.productId || productId) ? (
+                      {processing === plan.id ? (
                         <ActivityIndicator color={colors.background} size="small" />
                       ) : (
                         <Text style={styles.chooseButtonText}>
-                          {isCurrent ? 'Plan actuel' : 'Choisir ce plan'}
+                          {isCurrent ? 'Plan actuel' : 'Souscrire/Upgrade'}
                         </Text>
                       )}
                     </TouchableOpacity>
@@ -209,23 +171,9 @@ export default function SubscriptionScreen() {
         <View style={{ alignItems: 'center', marginTop: 8 }}>
           <TouchableOpacity 
             style={styles.restoreButton} 
-            onPress={async () => {
-              try {
-                setLoading(true);
-                const restored = await refreshAbonnement();
-                if (restored) {
-                  Alert.alert('Succès', 'Vos achats ont été restaurés avec succès.');
-                } else {
-                  Alert.alert('Information', 'Aucun achat à restaurer n\'a été trouvé.');
-                }
-              } catch (error) {
-                Alert.alert('Erreur', 'Impossible de restaurer vos achats.');
-              } finally {
-                setLoading(false);
-              }
-            }}
+            onPress={() => PlanService.openPortal(user?.uid)}
           > 
-            <Text style={styles.restoreText}>Restaurer mes achats</Text>
+            <Text style={styles.restoreText}>Gérer mon abonnement (Portail Stripe)</Text>
             <ArrowRight size={18} color={colors.primary} />
           </TouchableOpacity>
         </View>
