@@ -42,6 +42,8 @@ import * as ImagePicker from 'expo-image-picker';
 import { useCameraPermissions } from 'expo-camera';
 import * as MediaLibrary from 'expo-media-library';
 import CameraView from '@/components/CameraView';
+import { PlanService } from '@/services/planService';
+import { SignatureService } from '@/services/signatureService';
 import { 
   EDLData, 
   validateEDL, 
@@ -303,6 +305,12 @@ export default function EnhancedEDLWizard({
   }, [remainingSteps]);
 
   const openCamera = async (target: string) => {
+    // Guard photos usage per plan
+    const guard = await PlanService.planGuard('photos');
+    if (!guard.allowed) {
+      Alert.alert('Paywall', 'La prise de photos nécessite un plan supérieur.');
+      return;
+    }
     if (!cameraPermission?.granted) {
       try {
         const permission = await requestCameraPermission();
@@ -720,7 +728,12 @@ export default function EnhancedEDLWizard({
             onPress={() => openCamera('compteur')}
           />
           {/* Case vidéo */}
-          <TouchableOpacity onPress={() => {
+          <TouchableOpacity onPress={async () => {
+            const guard = await PlanService.planGuard('video');
+            if (!guard.allowed) {
+              Alert.alert('Paywall', 'La vidéo EDL est réservée aux plans Pro et supérieurs.');
+              return;
+            }
             setCurrentCaptureTarget('video');
             setCameraMode('video');
             setShowCamera(true);
@@ -885,14 +898,23 @@ export default function EnhancedEDLWizard({
               {signingStep === 'renter' ? 'Signature du loueur' : 'Signature du client'}
             </Text>
             <SignaturePad
-              onOK={dataUrl => {
-                if (signingStep === 'renter') {
-                  setRenterSignature(dataUrl);
-                  setSigningStep('client');
-                } else {
-                  setClientSignature(dataUrl);
-                  setShowSignatureModal(false);
-                  handleFinalValidation();
+              onOK={async dataUrl => {
+                try {
+                  const record = await SignatureService.saveSignatureFromDataUrl(dataUrl, {
+                    type: 'edl_depart',
+                    reservationId,
+                    signedByRole: signingStep === 'renter' ? 'renter' : 'client',
+                  });
+                  if (signingStep === 'renter') {
+                    setRenterSignature(record.fileUri);
+                    setSigningStep('client');
+                  } else {
+                    setClientSignature(record.fileUri);
+                    setShowSignatureModal(false);
+                    handleFinalValidation();
+                  }
+                } catch (e) {
+                  Alert.alert('Erreur', "Impossible d'enregistrer la signature en local.");
                 }
               }}
               descriptionText={signingStep === 'renter' ? 'Veuillez signer en tant que loueur' : 'Veuillez signer en tant que client'}

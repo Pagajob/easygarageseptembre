@@ -238,6 +238,40 @@ export default function ReservationDetailsScreen() {
     }
   };
 
+  const handleGenerateEDLPDF = async (type: 'depart' | 'retour') => {
+    try {
+      const { Documents } = await import('@/services/pdf/documents');
+      if (type === 'depart') {
+        const photos: string[] = [];
+        const p = reservation.edlDepart?.photos || {} as any;
+        Object.keys(p).forEach(k => {
+          const v = (p as Record<string, string | string[]>)[k];
+          if (typeof v === 'string') photos.push(v);
+          else if (Array.isArray(v)) photos.push(...v);
+        });
+        const fileUri = await Documents.buildEDLPDF({
+          company: { nom: companyInfo.nom || 'EasyGarage', adresse: companyInfo.adresse, siret: companyInfo.siret },
+          reservationId: reservation.id,
+          resume: { kilometrage: reservation.edlDepart?.kmDepart, carburant: reservation.edlDepart?.carburant },
+          photos,
+          documentNumber: `EG-${new Date().getFullYear()}${(new Date().getMonth()+1).toString().padStart(2,'0')}-${reservation.id}`,
+        });
+        Alert.alert('PDF EDL', 'PDF EDL de départ généré.');
+      } else {
+        const fileUri = await Documents.buildEDLPDF({
+          company: { nom: companyInfo.nom || 'EasyGarage', adresse: companyInfo.adresse, siret: companyInfo.siret },
+          reservationId: reservation.id,
+          resume: { kilometrage: reservation.edlRetour?.kmRetour, carburant: reservation.edlRetour?.carburantRetour },
+          photos: [],
+          documentNumber: `EG-${new Date().getFullYear()}${(new Date().getMonth()+1).toString().padStart(2,'0')}-${reservation.id}`,
+        });
+        Alert.alert('PDF EDL', 'PDF EDL de retour généré.');
+      }
+    } catch (e) {
+      Alert.alert('Erreur', 'Impossible de générer le PDF EDL.');
+    }
+  };
+
   const handleEDLRetourSave = async (edlData: any) => {
     try {
       const edlRetour = {
@@ -521,10 +555,7 @@ export default function ReservationDetailsScreen() {
                 setEdlRetourModalVisible(true);
               }
             }}
-            onDownloadPDF={(type) => {
-              // Logique pour télécharger le PDF
-              Alert.alert('Téléchargement', `Téléchargement du PDF ${type} en cours...`);
-            }}
+            onDownloadPDF={(type) => handleGenerateEDLPDF(type)}
             onShareEDL={(type) => {
               // Logique pour partager l'EDL
               Alert.alert('Partage', `Partage de l'EDL ${type} en cours...`);

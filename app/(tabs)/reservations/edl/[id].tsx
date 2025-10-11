@@ -7,6 +7,7 @@ import { useContracts } from '@/hooks/useContracts';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
 import SignaturePad from '@/components/SignaturePad';
+import { SignatureService } from '@/services/signatureService';
 import { ReservationService } from '@/services/firebaseService';
 import DepartureEDLWizard from '@/components/reservations/DepartureEDLWizard';
 import EnhancedEDLWizard from '@/components/reservations/EnhancedEDLWizard';
@@ -55,9 +56,18 @@ export default function EtatLieuxDepartScreen() {
     }
   }, [reservation, vehicle, client]);
 
-  const handleSignature = (signature: string) => {
-    setSignature(signature);
-    setShowSignatureModal(false);
+  const handleSignature = async (dataUrl: string) => {
+    try {
+      const record = await SignatureService.saveSignatureFromDataUrl(dataUrl, {
+        type: 'edl_depart',
+        reservationId: reservationId,
+        signedByRole: 'client',
+      });
+      setSignature(record.fileUri);
+      setShowSignatureModal(false);
+    } catch (e) {
+      Alert.alert('Erreur', "Impossible d'enregistrer la signature en local.");
+    }
   };
 
   const handleSignatureEmpty = () => {

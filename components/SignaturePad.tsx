@@ -60,6 +60,21 @@ export default function SignaturePad({
     onClear?.();
   };
 
+  const handleUndo = () => {
+    if (Platform.OS === 'web') {
+      // Undo non supporté pour react-signature-canvas par défaut
+      return;
+    }
+    try {
+      if (signatureRef.current && typeof signatureRef.current.undo === 'function') {
+        signatureRef.current.undo();
+        setIsEmpty(false);
+      }
+    } catch (e) {
+      // no-op
+    }
+  };
+
   const handleConfirm = () => {
     if (isEmpty) {
       onEmpty?.();
@@ -133,6 +148,14 @@ export default function SignaturePad({
             <Text style={styles.clearButtonText}>{clearText}</Text>
           </TouchableOpacity>
           <TouchableOpacity 
+            style={[styles.clearButton, { opacity: 0.5 }]} 
+            onPress={handleUndo}
+            disabled
+          >
+            <RotateCcw size={20} color={colors.textSecondary} />
+            <Text style={styles.clearButtonText}>Annuler un trait</Text>
+          </TouchableOpacity>
+          <TouchableOpacity 
             style={[styles.confirmButton, isEmpty && styles.confirmButtonDisabled]} 
             onPress={handleConfirm}
           >
@@ -194,6 +217,10 @@ export default function SignaturePad({
           <TouchableOpacity style={styles.clearButton} onPress={handleClear}>
             <RotateCcw size={20} color={colors.textSecondary} />
             <Text style={styles.clearButtonText}>{clearText}</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.clearButton} onPress={handleUndo}>
+            <RotateCcw size={20} color={colors.textSecondary} />
+            <Text style={styles.clearButtonText}>Annuler un trait</Text>
           </TouchableOpacity>
           <TouchableOpacity 
             style={[styles.confirmButton, isEmpty && styles.confirmButtonDisabled]} 
